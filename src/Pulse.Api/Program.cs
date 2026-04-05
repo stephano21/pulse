@@ -1,0 +1,108 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Pulse.Api.Auth;
+using Pulse.Api.Middleware;
+using Pulse.Api.Swagger;
+using Pulse.Infrastructure;
+using Pulse.Infrastructure.Middleware;
+using Swashbuckle.AspNetCore.SwaggerGen;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
+builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection("Authentication:Google"));
+builder.Services.AddSingleton<TokenService>();
+
+builder.Services.AddInfrastructure(builder.Configuration);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+        o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+builder.Services.AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1, 0);
+        options.AssumeDefaultVersionWhenUnspecified = true;
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddMvc()
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+var app = builder.Build();
+
+app.UseMiddleware<RequestIdMiddleware>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+        foreach (var description in provider.ApiVersionDescriptions.OrderByDescending(d => d.ApiVersion))
+        {
+            options.SwaggerEndpoint(
+                $"/swagger/{description.GroupName}/swagger.json",
+                $"Pulse {description.GroupName.ToUpperInvariant()}");
+        }
+    });
+}
+
+app.UseExceptionHandler();
+app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<IdempotencyMiddleware>();
+
+app.MapControllers();
+
+app.MapGet("/", (IWebHostEnvironment env) =>
+    env.IsDevelopment()
+        ? Results.Redirect("/swagger/index.html", permanent: false)
+        : Results.Redirect("/v1/health", permanent: false))
+    .ExcludeFromDescription();
+
+await DatabaseInitializer.MigrateAndSeedAsync(app.Services);
+
+app.Run();
