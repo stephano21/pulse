@@ -13,6 +13,12 @@ using Pulse.Infrastructure;
 using Pulse.Infrastructure.Middleware;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
+// Railway y otros proveedores suelen exponer solo DATABASE_URL (postgres://...).
+var existingConn = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+if (string.IsNullOrWhiteSpace(existingConn) && !string.IsNullOrWhiteSpace(databaseUrl))
+    Environment.SetEnvironmentVariable("ConnectionStrings__Default", databaseUrl);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));

@@ -14,9 +14,23 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Default")
-            ?? throw new InvalidOperationException("Falta ConnectionStrings:Default para SQL Server.");
-        services.AddDbContext<PulseDbContext>(o => o.UseSqlServer(connectionString));
+        var connectionString = configuration.GetConnectionString("Default");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Falta ConnectionStrings__Default (o ConnectionStrings:Default). " +
+                "Ejemplo: Host=localhost;Port=5432;Database=pulse;Username=pulse;Password=***");
+        }
+
+        var looksLikeUri = connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+            || connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase);
+        if (!connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) && !looksLikeUri)
+        {
+            throw new InvalidOperationException(
+                "Usa una cadena Npgsql con Host=..., o una URI postgres://... / postgresql://... (p. ej. DATABASE_URL en Railway).");
+        }
+
+        services.AddDbContext<PulseDbContext>(o => o.UseNpgsql(connectionString));
 
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
