@@ -28,7 +28,7 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
 
         modelBuilder.Entity<ApplicationUser>(e =>
         {
-            e.ToTable("AspNetUsers", DatabaseSchemas.Identity);
+            e.ToTable("users", DatabaseSchemas.Identity);
             e.HasIndex(u => u.TenantId);
             e.Property(u => u.AuthProvider).HasMaxLength(32).HasDefaultValue(AuthProviders.Local);
             e.Property(u => u.GoogleSubject).HasMaxLength(256);
@@ -37,12 +37,12 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
             e.HasOne<Tenant>().WithMany().HasForeignKey(u => u.TenantId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        modelBuilder.Entity<IdentityRole<Guid>>(e => e.ToTable("AspNetRoles", DatabaseSchemas.Identity));
-        modelBuilder.Entity<IdentityUserRole<Guid>>(e => e.ToTable("AspNetUserRoles", DatabaseSchemas.Identity));
-        modelBuilder.Entity<IdentityUserClaim<Guid>>(e => e.ToTable("AspNetUserClaims", DatabaseSchemas.Identity));
-        modelBuilder.Entity<IdentityUserLogin<Guid>>(e => e.ToTable("AspNetUserLogins", DatabaseSchemas.Identity));
-        modelBuilder.Entity<IdentityRoleClaim<Guid>>(e => e.ToTable("AspNetRoleClaims", DatabaseSchemas.Identity));
-        modelBuilder.Entity<IdentityUserToken<Guid>>(e => e.ToTable("AspNetUserTokens", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityRole<Guid>>(e => e.ToTable("roles", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityUserRole<Guid>>(e => e.ToTable("user_roles", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityUserClaim<Guid>>(e => e.ToTable("user_claims", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityUserLogin<Guid>>(e => e.ToTable("user_logins", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityRoleClaim<Guid>>(e => e.ToTable("role_claims", DatabaseSchemas.Identity));
+        modelBuilder.Entity<IdentityUserToken<Guid>>(e => e.ToTable("user_tokens", DatabaseSchemas.Identity));
 
         modelBuilder.Entity<Tenant>(e =>
         {

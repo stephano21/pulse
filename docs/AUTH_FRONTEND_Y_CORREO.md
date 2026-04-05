@@ -277,7 +277,7 @@ Ejemplo genérico STARTTLS (puerto 587):
 | Variable | Ejemplo |
 |----------|---------|
 | `ConnectionStrings__Default` | Cadena Npgsql o `DATABASE_URL` |
-| `Jwt__SigningKey` | Clave larga y secreta |
+| `JWTKey` o `Jwt__SigningKey` | Secreto HMAC para firmar/validar JWT (mín. ~32 caracteres). Si defines `JWTKey`, la API la copia a `Jwt__SigningKey` al arrancar. |
 | `App__PublicBaseUrl` | `https://tu-api.up.railway.app` |
 | `Authentication__Google__ClientId` | Client ID de Google |
 | `Email__Host`, `Email__Port`, … | SMTP de producción o interno |
@@ -296,9 +296,9 @@ Si necesitas que el enlace de confirmación abra primero tu app móvil o dominio
 
 ---
 
-## 10. Trazabilidad en base de datos (`identity.AspNetUsers`)
+## 10. Trazabilidad en base de datos (`identity.users`)
 
-Además de `AspNetUserLogins` (proveedor Google + clave), la tabla de usuarios guarda:
+Además de `identity.user_logins` (proveedor Google + clave), la tabla `identity.users` guarda:
 
 | Campo | Uso |
 |--------|-----|
@@ -308,4 +308,8 @@ Además de `AspNetUserLogins` (proveedor Google + clave), la tabla de usuarios g
 | `CreatedAt` | Alta del usuario (UTC). |
 | `LastLoginAt` | Último login exitoso (correo o Google). |
 
-Los informes y auditorías pueden filtrar por estos campos sin unir siempre a `AspNetUserLogins`.
+Los informes y auditorías pueden filtrar por estos campos sin unir siempre a `user_logins`.
+
+### Nombres de tablas Identity
+
+En el esquema `identity` las tablas usan nombres cortos (`users`, `roles`, `user_logins`, …), no los prefijos por defecto de .NET (`AspNetUsers`, …). El motor sigue siendo **ASP.NET Identity + EF Core**; solo cambia el mapeo a PostgreSQL para que el esquema sea más legible.

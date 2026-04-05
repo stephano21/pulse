@@ -45,7 +45,7 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=pulse;Username=pulse;Password=pulse_dev_2026"
       Jwt__Issuer: pulse
       Jwt__Audience: yapa
-      Jwt__SigningKey: "docker-dev-signing-key-at-least-32-characters-long!!"
+      JWTKey: "docker-dev-signing-key-at-least-32-characters-long!!"
       App__PublicBaseUrl: "http://localhost:8080"
       Authentication__Google__ClientId: ""
       Email__Host: "mailpit"

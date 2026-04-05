@@ -21,6 +21,7 @@ if (string.IsNullOrWhiteSpace(existingConn) && !string.IsNullOrWhiteSpace(databa
     Environment.SetEnvironmentVariable("ConnectionStrings__Default", databaseUrl);
 
 EmailEnvironmentBootstrap.Apply();
+JwtEnvironmentBootstrap.Apply();
 
 var builder = WebApplication.CreateBuilder(args);
 
