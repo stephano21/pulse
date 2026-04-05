@@ -45,7 +45,13 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<PulseDbContext>()
             .AddDefaultTokenProviders();
 
-        services.AddSingleton<IEmailSender, LoggingEmailSender>();
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        var emailSection = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>();
+        if (emailSection?.IsSmtpConfigured == true)
+            services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        else
+            services.AddSingleton<IEmailSender, LoggingEmailSender>();
+
         services.AddScoped<ISyncService, SyncService>();
         return services;
     }

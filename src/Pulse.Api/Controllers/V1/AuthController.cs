@@ -21,17 +21,10 @@ public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     IEmailSender emailSender,
     IOptions<AppOptions> appOptions,
-    IOptions<GoogleAuthOptions> googleOptions,
-    IHostEnvironment env) : ControllerBase
+    IOptions<GoogleAuthOptions> googleOptions) : ControllerBase
 {
     private readonly AppOptions _app = appOptions.Value;
     private readonly GoogleAuthOptions _google = googleOptions.Value;
-
-    public sealed class DevTokenRequest
-    {
-        public Guid TenantId { get; set; }
-        public string Subject { get; set; } = "dev-device";
-    }
 
     public sealed class RegisterRequest
     {
@@ -56,18 +49,6 @@ public sealed class AuthController(
         public string IdToken { get; set; } = "";
     }
 
-    /// <summary>Solo disponible en entorno Development: emite un JWT de prueba con tenant_id.</summary>
-    [HttpPost("token")]
-    [AllowAnonymous]
-    public IActionResult DevToken([FromBody] DevTokenRequest body)
-    {
-        if (!env.IsDevelopment())
-            return NotFound();
-
-        var token = tokens.CreateAccessToken(body.TenantId, body.Subject);
-        return Ok(new { access_token = token, token_type = "Bearer", expires_in = 12 * 3600 });
-    }
-
     /// <summary>Registro con correo y contraseña. Envía enlace de confirmación (en desarrollo se registra en logs).</summary>
     [HttpPost("register")]
     [AllowAnonymous]
@@ -80,12 +61,15 @@ public sealed class AuthController(
                 statusCode: StatusCodes.Status503ServiceUnavailable);
 
         var email = body.Email.Trim();
+        var now = DateTimeOffset.UtcNow;
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
             UserName = email,
             Email = email,
-            TenantId = _app.DefaultTenantId
+            TenantId = _app.DefaultTenantId,
+            AuthProvider = AuthProviders.Local,
+            CreatedAt = now
         };
 
         var result = await userManager.CreateAsync(user, body.Password);
@@ -159,6 +143,9 @@ public sealed class AuthController(
                 detail: "Confirma tu correo antes de iniciar sesión.",
                 statusCode: StatusCodes.Status403Forbidden);
 
+        user.LastLoginAt = DateTimeOffset.UtcNow;
+        await userManager.UpdateAsync(user);
+
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
         var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
         return Ok(new { access_token = accessToken, token_type = "Bearer", expires_in = 12 * 3600 });
@@ -228,6 +215,7 @@ public sealed class AuthController(
                 statusCode: StatusCodes.Status403Forbidden);
 
         var email = payload.Email;
+        var pictureUrl = NormalizePictureUrl(payload.Picture);
         var loginInfo = new UserLoginInfo("Google", payload.Subject, "Google");
 
         var user = await userManager.FindByLoginAsync(loginInfo.LoginProvider, loginInfo.ProviderKey);
@@ -236,13 +224,19 @@ public sealed class AuthController(
             user = await userManager.FindByEmailAsync(email);
             if (user is null)
             {
+                var now = DateTimeOffset.UtcNow;
                 user = new ApplicationUser
                 {
                     Id = Guid.NewGuid(),
                     UserName = email,
                     Email = email,
                     EmailConfirmed = true,
-                    TenantId = _app.DefaultTenantId
+                    TenantId = _app.DefaultTenantId,
+                    AuthProvider = AuthProviders.Google,
+                    GoogleSubject = payload.Subject,
+                    ProfilePictureUrl = pictureUrl,
+                    CreatedAt = now,
+                    LastLoginAt = now
                 };
                 var randomPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) + "Aa1!";
                 var create = await userManager.CreateAsync(user, randomPassword);
@@ -262,13 +256,20 @@ public sealed class AuthController(
         }
 
         if (!user.EmailConfirmed)
-        {
             user.EmailConfirmed = true;
-            await userManager.UpdateAsync(user);
-        }
+
+        user.GoogleSubject = payload.Subject;
+        user.LastLoginAt = DateTimeOffset.UtcNow;
+        if (pictureUrl is not null)
+            user.ProfilePictureUrl = pictureUrl;
+
+        await userManager.UpdateAsync(user);
 
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
         var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
         return Ok(new { access_token = accessToken, token_type = "Bearer", expires_in = 12 * 3600 });
     }
+
+    private static string? NormalizePictureUrl(string? picture) =>
+        string.IsNullOrWhiteSpace(picture) ? null : picture.Trim();
 }

@@ -4,8 +4,16 @@
 #   docker compose up --build
 # API:  http://localhost:8080   Swagger: http://localhost:8080/swagger
 # Postgres: localhost:5432  (usuario pulse / ver POSTGRES_PASSWORD)
+# Mailpit (correo de prueba): UI http://localhost:8025  SMTP localhost:1025
 
 services:
+  mailpit:
+    image: axllent/mailpit
+    container_name: pulse-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   postgres:
     image: postgres:17-alpine
     container_name: pulse-postgres
@@ -40,9 +48,16 @@ services:
       Jwt__SigningKey: "docker-dev-signing-key-at-least-32-characters-long!!"
       App__PublicBaseUrl: "http://localhost:8080"
       Authentication__Google__ClientId: ""
+      Email__Host: "mailpit"
+      Email__Port: "1025"
+      Email__FromAddress: "noreply@pulse.local"
+      Email__FromName: "Pulse"
+      Email__SslMode: "None"
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
 volumes:
   pulse_pg_data:

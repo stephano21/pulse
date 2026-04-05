@@ -30,6 +30,10 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
         {
             e.ToTable("AspNetUsers", DatabaseSchemas.Identity);
             e.HasIndex(u => u.TenantId);
+            e.Property(u => u.AuthProvider).HasMaxLength(32).HasDefaultValue(AuthProviders.Local);
+            e.Property(u => u.GoogleSubject).HasMaxLength(256);
+            e.HasIndex(u => u.GoogleSubject).IsUnique();
+            e.Property(u => u.ProfilePictureUrl).HasMaxLength(2048);
             e.HasOne<Tenant>().WithMany().HasForeignKey(u => u.TenantId).OnDelete(DeleteBehavior.SetNull);
         });
 

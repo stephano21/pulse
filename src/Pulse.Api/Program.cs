@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Pulse.Api.Auth;
+using Pulse.Api.Configuration;
 using Pulse.Api.Middleware;
 using Pulse.Api.Swagger;
 using Pulse.Infrastructure;
@@ -18,6 +19,8 @@ var existingConn = Environment.GetEnvironmentVariable("ConnectionStrings__Defaul
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 if (string.IsNullOrWhiteSpace(existingConn) && !string.IsNullOrWhiteSpace(databaseUrl))
     Environment.SetEnvironmentVariable("ConnectionStrings__Default", databaseUrl);
+
+EmailEnvironmentBootstrap.Apply();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +48,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+builder.Services.AddCors(o =>
+{
+    o.AddDefaultPolicy(p =>
+    {
+        if (corsOrigins is { Length: > 0 })
+            p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod();
+        else
+            p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
@@ -96,6 +111,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();

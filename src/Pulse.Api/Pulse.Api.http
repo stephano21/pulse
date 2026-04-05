@@ -1,21 +1,18 @@
 @Pulse.Api_HostAddress = http://localhost:5258
 # Docker: @Pulse.Api_HostAddress = http://localhost:8080
-@tenant_id = 00000000-0000-0000-0000-000000000001
-
 ### Salud (sin auth)
 GET {{Pulse.Api_HostAddress}}/v1/health
 Accept: application/json
 
-### JWT de desarrollo (solo Development)
-POST {{Pulse.Api_HostAddress}}/v1/auth/token
+### Login (usuario real: registro previo + correo confirmado, o Google)
+# @token = pega aquí access_token tras ejecutar login
+POST {{Pulse.Api_HostAddress}}/v1/auth/login
 Content-Type: application/json
 
 {
-  "tenant_id": "{{tenant_id}}",
-  "subject": "dev-device"
+  "email": "tu@correo.com",
+  "password": "TuPassword8+"
 }
-
-### @token = pega aquí access_token tras ejecutar auth/token
 
 ### Push productos (Bearer requerido)
 POST {{Pulse.Api_HostAddress}}/v1/sync/productos
