@@ -88,20 +88,19 @@ var app = builder.Build();
 
 app.UseMiddleware<RequestIdMiddleware>();
 
-if (app.Environment.IsDevelopment())
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
+    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+    foreach (var description in provider.ApiVersionDescriptions.OrderByDescending(d => d.ApiVersion))
     {
-        var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-        foreach (var description in provider.ApiVersionDescriptions.OrderByDescending(d => d.ApiVersion))
-        {
-            options.SwaggerEndpoint(
-                $"/swagger/{description.GroupName}/swagger.json",
-                $"Pulse {description.GroupName.ToUpperInvariant()}");
-        }
-    });
-}
+        options.SwaggerEndpoint(
+            $"/swagger/{description.GroupName}/swagger.json",
+            $"Pulse {description.GroupName.ToUpperInvariant()}");
+    }
+});
+
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
