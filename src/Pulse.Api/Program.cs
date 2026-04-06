@@ -38,8 +38,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
 
+builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, PostConfigurePulseJwtBearerOptions>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
-builder.Services.AddSingleton<IConfigureNamedOptions<JwtBearerOptions>, ConfigurePulseJwtBearerOptions>();
 
 builder.Services.AddAuthorization();
 

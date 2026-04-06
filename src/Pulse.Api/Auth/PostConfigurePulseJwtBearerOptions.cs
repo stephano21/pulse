@@ -8,31 +8,26 @@ using Microsoft.IdentityModel.Tokens;
 namespace Pulse.Api.Auth;
 
 /// <summary>
-/// Alinea la validación JWT con <see cref="JwtOptions"/> (la misma fuente que <see cref="TokenService"/>).
+/// Se ejecuta <b>después</b> de los defaults de AddJwtBearer para que iss/aud/clave coincidan con <see cref="TokenService"/>.
 /// </summary>
-internal sealed class ConfigurePulseJwtBearerOptions(
+internal sealed class PostConfigurePulseJwtBearerOptions(
     IOptions<JwtOptions> jwtOptions,
-    IWebHostEnvironment environment) : IConfigureNamedOptions<JwtBearerOptions>
+    IWebHostEnvironment environment) : IPostConfigureOptions<JwtBearerOptions>
 {
-    public void Configure(JwtBearerOptions options) =>
-        Configure(JwtBearerDefaults.AuthenticationScheme, options);
-
-    public void Configure(string? name, JwtBearerOptions options)
+    public void PostConfigure(string? name, JwtBearerOptions options)
     {
         if (name != JwtBearerDefaults.AuthenticationScheme)
             return;
 
         var jwt = jwtOptions.Value;
         options.IncludeErrorDetails = environment.IsDevelopment() || jwt.IncludeErrorDetails;
-        options.Events = new JwtBearerEvents
+        options.Events ??= new JwtBearerEvents();
+        options.Events.OnAuthenticationFailed = c =>
         {
-            OnAuthenticationFailed = c =>
-            {
-                var log = c.HttpContext.RequestServices.GetService<ILoggerFactory>()
-                    ?.CreateLogger("Microsoft.AspNetCore.Authentication.JwtBearer");
-                log?.LogWarning(c.Exception, "JWT rechazado: {Message}", c.Exception.Message);
-                return Task.CompletedTask;
-            }
+            var log = c.HttpContext.RequestServices.GetService<ILoggerFactory>()
+                ?.CreateLogger("Microsoft.AspNetCore.Authentication.JwtBearer");
+            log?.LogWarning(c.Exception, "JWT rechazado: {Message}", c.Exception.Message);
+            return Task.CompletedTask;
         };
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -40,6 +35,7 @@ internal sealed class ConfigurePulseJwtBearerOptions(
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            RequireSignedTokens = true,
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
