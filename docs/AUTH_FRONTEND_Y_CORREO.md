@@ -131,6 +131,19 @@ Claims útiles del JWT (referencia): `sub` (id usuario), `tenant_id`, `email`, `
 
 ## 5. Login con Google (OAuth2 / OpenID en el cliente)
 
+### Dos JWT distintos (importante)
+
+| Token | Quién lo firma | Para qué sirve |
+|--------|------------------|----------------|
+| **id_token** de Google | Google | Solo lo envías **una vez** en `POST /v1/auth/google`. La API lo valida con `Authentication:Google:ClientId` y luego **no** lo vuelve a usar. |
+| **access_token** de Pulse | Tu API (`JWTKey` / HS256) | Es el **Bearer** en sync y el resto de endpoints. Lo emite el backend tras login Google (o login correo). Claims típicos: `sub` (usuario), `tenant_id`, `scope`, `email`. |
+
+El móvil debe **guardar `access_token`** de la respuesta de `/v1/auth/google` y usar **ese** string en `Authorization: Bearer …` para `POST /v1/sync/...`. Si envías el id_token de Google como Bearer, la API lo rechazará (401).
+
+La validación del Bearer y la firma del token de sesión usan la **misma** configuración `Jwt` (`Issuer`, `Audience`, `SigningKey` / `JWTKey`).
+
+---
+
 La API valida el **ID token** JWT que entrega Google al cliente (no el “access token” de APIs de Google).
 
 ### 5.1 Google Cloud Console

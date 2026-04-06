@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Pulse.Api.Auth;
@@ -39,33 +38,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o =>
-    {
-        var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-        o.IncludeErrorDetails = builder.Environment.IsDevelopment() || jwt.IncludeErrorDetails;
-        o.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = c =>
-            {
-                var log = c.HttpContext.RequestServices.GetService<ILoggerFactory>()
-                    ?.CreateLogger("Microsoft.AspNetCore.Authentication.JwtBearer");
-                log?.LogWarning(c.Exception, "JWT rechazado: {Message}", c.Exception.Message);
-                return Task.CompletedTask;
-            }
-        };
-        o.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-            ClockSkew = TimeSpan.FromMinutes(2)
-        };
-    });
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddSingleton<IConfigureNamedOptions<JwtBearerOptions>, ConfigurePulseJwtBearerOptions>();
 
 builder.Services.AddAuthorization();
 

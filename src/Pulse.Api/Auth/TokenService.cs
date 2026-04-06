@@ -6,13 +6,15 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Pulse.Api.Auth;
 
-public sealed class TokenService(IOptions<JwtOptions> options)
+/// <summary>
+/// Emite el JWT de sesión de Pulse (HS256). No confundir con el id_token de Google: ese solo se usa en <c>POST /v1/auth/google</c>.
+/// </summary>
+public sealed class TokenService(IOptions<JwtOptions> jwtOptions)
 {
-    private readonly JwtOptions _opt = options.Value;
-
     public string CreateAccessToken(Guid tenantId, string subject, string? email = null, IEnumerable<string>? scopes = null)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opt.SigningKey));
+        var opt = jwtOptions.Value;
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opt.SigningKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var now = DateTime.UtcNow;
         var claims = new List<Claim>
@@ -26,8 +28,8 @@ public sealed class TokenService(IOptions<JwtOptions> options)
             claims.Add(new Claim("scope", s));
 
         var token = new JwtSecurityToken(
-            issuer: _opt.Issuer,
-            audience: _opt.Audience,
+            issuer: opt.Issuer,
+            audience: opt.Audience,
             claims: claims,
             notBefore: now,
             expires: now.AddHours(12),
