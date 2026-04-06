@@ -178,9 +178,35 @@ const data = await res.json();
 
 **401 / 403 / 503**: Problem Details (token inválido, email no verificado en Google, Google no configurado en servidor).
 
-### 5.4 Móvil (iOS / Android)
+### 5.4 Móvil (Expo / React Native / nativo)
 
-Usa el SDK de Google Sign-In del sistema, obtén el **ID token** del resultado y envíalo en `POST /v1/auth/google` como `id_token`.
+Usa el SDK de Google Sign-In, obtén el **ID token** del resultado y envíalo en `POST /v1/auth/google` como `id_token`.
+
+En muchos tutoriales de móvil se usa el **Client ID de tipo “Aplicación web”** en `GoogleSignin.configure` (p. ej. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`), porque el token que obtienes debe llevar como **audience** (`aud`) ese mismo ID. Ese **mismo valor** tiene que estar en el backend Pulse como `Authentication__Google__ClientId`. Si el móvil usara solo el Client ID “Android/iOS” y el backend esperara otro, la validación fallaría.
+
+### 5.5 Error «Google no configurado» (503)
+
+Significa que en el **servidor** Pulse **no** está definido `Authentication:Google:ClientId` (o está vacío). El API necesita ese valor para validar el `id_token` con `GoogleJsonWebSignature` (el `aud` del JWT debe coincidir con ese Client ID).
+
+**No basta** con configurar solo la app móvil o el front: quien despliega el API debe definir la variable en el entorno donde corre Pulse:
+
+```bash
+Authentication__Google__ClientId=123456789-xxxx.apps.googleusercontent.com
+```
+
+En `appsettings.json`:
+
+```json
+"Authentication": {
+  "Google": {
+    "ClientId": "123456789-xxxx.apps.googleusercontent.com"
+  }
+}
+```
+
+Tras cambiar la variable, **reinicia** el servicio del API para que cargue la configuración.
+
+Si el flujo en el teléfono muestra la cuenta de Google y obtienes un token, pero el backend responde 503 con ese mensaje, el fallo es **solo** de configuración del servidor Pulse, no del cliente.
 
 ---
 
@@ -277,7 +303,7 @@ Ejemplo genérico STARTTLS (puerto 587):
 | Variable | Ejemplo |
 |----------|---------|
 | `ConnectionStrings__Default` | Cadena Npgsql o `DATABASE_URL` |
-| `JWTKey` o `Jwt__SigningKey` | Secreto HMAC para firmar/validar JWT (mín. ~32 caracteres). Si defines `JWTKey`, la API la copia a `Jwt__SigningKey` al arrancar. |
+| `JWTKey` o `Jwt__SigningKey` | Secreto HMAC para firmar/validar JWT con **HS256**. Debe tener **al menos 32 bytes en UTF-8** (256 bits); si es más corta, verás `IDX10720` al emitir o validar tokens. Si defines `JWTKey`, la API la copia a `Jwt__SigningKey` al arrancar. |
 | `App__PublicBaseUrl` | `https://tu-api.up.railway.app` |
 | `Authentication__Google__ClientId` | Client ID de Google |
 | `Email__Host`, `Email__Port`, … | SMTP de producción o interno |
@@ -285,7 +311,32 @@ Ejemplo genérico STARTTLS (puerto 587):
 
 ---
 
-## 9. Flujo recomendado en tu app con datos locales
+## 9. Sync devuelve 401 con Bearer (no es el JSON del body)
+
+El servidor **no “omite” el front**: si el POST llega con `Authorization: Bearer …` y la respuesta es **401**, el **JWT no pasó la validación** (falla antes del controlador). El cuerpo `items` / snake_case suele estar bien.
+
+Comprueba en este orden:
+
+1. **Mismo origen que al login**  
+   El token debe obtenerse llamando a **la misma base URL** que usas para sync (p. ej. todo `https://apipulse.up.railway.app`). Si iniciaste sesión contra **localhost** u otro despliegue y luego sincronizas contra Railway, la **firma o la clave** no coinciden → 401.
+
+2. **`JWTKey` / `Jwt__SigningKey` idénticos**  
+   Quien firmó el token (mismo servicio en el mismo despliegue) debe usar **exactamente** la misma clave que valida las peticiones. Si en Railway rotaste la variable sin volver a iniciar sesión, el token antiguo queda inválido.
+
+3. **`Jwt__Issuer` y `Jwt__Audience`**  
+   Deben coincidir con los claims `iss` y `aud` del token (por defecto en el repo: `pulse` y `yapa`). Si en el servidor pusiste otros valores, el login y el sync deben usar **esa** configuración.
+
+4. **Expiración**  
+   El token dura 12 horas. Prueba de nuevo tras un login reciente.
+
+5. **Cabecera**  
+   Debe ser exactamente `Authorization: Bearer <token>` (un espacio, sin comillas ni saltos de línea dentro del token).
+
+En el servidor, con la versión actual del API, los logs muestran una línea **`JWT rechazado: …`** con el mensaje interno (p. ej. firma, audiencia o expiración). Para ver más detalle en cabeceras HTTP puedes poner temporalmente `Jwt__IncludeErrorDetails=true` en Railway (solo depuración).
+
+---
+
+## 10. Flujo recomendado en tu app con datos locales
 
 1. Pantalla registro / login / Google.
 2. Tras login exitoso, guardar `access_token`.
@@ -296,7 +347,7 @@ Si necesitas que el enlace de confirmación abra primero tu app móvil o dominio
 
 ---
 
-## 10. Trazabilidad en base de datos (`identity.users`)
+## 11. Trazabilidad en base de datos (`identity.users`)
 
 Además de `identity.user_logins` (proveedor Google + clave), la tabla `identity.users` guarda:
 

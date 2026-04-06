@@ -1,9 +1,11 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Pulse.Api.Auth;
@@ -25,6 +27,8 @@ JwtEnvironmentBootstrap.Apply();
 
 var builder = WebApplication.CreateBuilder(args);
 
+JwtSigningKeyValidator.Validate(builder.Configuration);
+
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
 builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection("Authentication:Google"));
@@ -32,10 +36,24 @@ builder.Services.AddSingleton<TokenService>();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
         var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+        o.IncludeErrorDetails = builder.Environment.IsDevelopment() || jwt.IncludeErrorDetails;
+        o.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = c =>
+            {
+                var log = c.HttpContext.RequestServices.GetService<ILoggerFactory>()
+                    ?.CreateLogger("Microsoft.AspNetCore.Authentication.JwtBearer");
+                log?.LogWarning(c.Exception, "JWT rechazado: {Message}", c.Exception.Message);
+                return Task.CompletedTask;
+            }
+        };
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -44,7 +62,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+            ClockSkew = TimeSpan.FromMinutes(2)
         };
     });
 

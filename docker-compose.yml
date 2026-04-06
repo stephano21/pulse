@@ -47,6 +47,7 @@ services:
       Jwt__Audience: yapa
       JWTKey: "docker-dev-signing-key-at-least-32-characters-long!!"
       App__PublicBaseUrl: "http://localhost:8080"
+      # Mismo Client ID que "Aplicación web" en Google Cloud (audience del id_token). Vacío => POST /v1/auth/google responde 503.
       Authentication__Google__ClientId: ""
       Email__Host: "mailpit"
       Email__Port: "1025"
