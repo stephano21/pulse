@@ -22,16 +22,25 @@ public sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provi
                 });
         }
 
-        options.AddSecurityDefinition(
-            "Bearer",
-            new OpenApiSecurityScheme
+        var bearerScheme = new OpenApiSecurityScheme
+        {
+            Description = "JWT: encabezado Authorization con valor Bearer {token}",
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT"
+        };
+
+        options.AddSecurityDefinition("Bearer", bearerScheme);
+
+        options.AddSecurityRequirement(
+            _ => new OpenApiSecurityRequirement
             {
-                Description = "JWT: encabezado Authorization con valor Bearer {token}",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.Http,
-                Scheme = "bearer",
-                BearerFormat = "JWT"
+                {
+                    new OpenApiSecuritySchemeReference("Bearer"),
+                    new List<string>()
+                }
             });
     }
 }
