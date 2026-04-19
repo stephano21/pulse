@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -40,6 +41,14 @@ JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
 
 builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, PostConfigurePulseJwtBearerOptions>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+
+// AddIdentity registra cookies como esquema por defecto; sin esto, [Authorize] en la API
+// desafía con cookie y redirige a /Account/Login (302) en lugar de validar el Bearer JWT.
+builder.Services.PostConfigure<AuthenticationOptions>(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+});
 
 builder.Services.AddAuthorization();
 
