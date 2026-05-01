@@ -34,21 +34,30 @@ builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptio
 builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection("Authentication:Google"));
 builder.Services.AddSingleton<TokenService>();
 
-builder.Services.AddInfrastructure(builder.Configuration);
+// DbContext antes de Identity (Identity necesita el store). JWT se registra antes que Identity,
+// como en proyectos con Startup clásico (SGC): primero Bearer, luego Identity.
+builder.Services.AddPulsePersistence(builder.Configuration);
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
 
 builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, PostConfigurePulseJwtBearerOptions>();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer();
 
-// AddIdentity registra cookies como esquema por defecto; sin esto, [Authorize] en la API
-// desafía con cookie y redirige a /Account/Login (302) en lugar de validar el Bearer JWT.
+builder.Services.AddPulseIdentity();
+
+// AddIdentity vuelve a fijar el esquema por defecto en cookies; sin este paso, [Authorize] redirige a /Account/Login.
 builder.Services.PostConfigure<AuthenticationOptions>(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 });
+
+builder.Services.AddPulseEmailAndSync(builder.Configuration);
 
 builder.Services.AddAuthorization();
 

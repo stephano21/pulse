@@ -12,7 +12,19 @@ namespace Pulse.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>
+    /// Persistencia + Identity + email + sync. En la API, preferir registrar
+    /// <see cref="AddPulsePersistence"/>, JWT, <see cref="AddPulseIdentity"/> y luego el resto (orden tipo SGC).
+    /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddPulsePersistence(configuration);
+        services.AddPulseIdentity();
+        services.AddPulseEmailAndSync(configuration);
+        return services;
+    }
+
+    public static IServiceCollection AddPulsePersistence(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("Default");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -31,7 +43,11 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<PulseDbContext>(o => o.UseNpgsql(connectionString));
+        return services;
+    }
 
+    public static IServiceCollection AddPulseIdentity(this IServiceCollection services)
+    {
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
             {
@@ -44,7 +60,11 @@ public static class DependencyInjection
             })
             .AddEntityFrameworkStores<PulseDbContext>()
             .AddDefaultTokenProviders();
+        return services;
+    }
 
+    public static IServiceCollection AddPulseEmailAndSync(this IServiceCollection services, IConfiguration configuration)
+    {
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
         var emailSection = configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>();
         if (emailSection?.IsSmtpConfigured == true)
