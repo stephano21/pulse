@@ -127,3 +127,53 @@ public sealed class PagedClientesResponse
     public List<ClienteDto> Items { get; set; } = [];
     public string? NextCursor { get; set; }
 }
+
+public sealed class VentaLineaDto
+{
+    public Guid Id { get; set; }
+    public string Descripcion { get; set; } = "";
+    public decimal Cantidad { get; set; }
+    public decimal PrecioUnitario { get; set; }
+    public decimal Subtotal { get; set; }
+    public Guid? ProductoId { get; set; }
+}
+
+public sealed class VentaDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public decimal Total { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public MetodoPago MetodoPago { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public EstadoVenta Estado { get; set; }
+
+    public Guid? ClienteId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<VentaLineaDto> Lineas { get; set; } = [];
+}
+
+public sealed class PagedVentasResponse
+{
+    public List<VentaDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}
+
+public sealed class CobroDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public Guid ClienteId { get; set; }
+    public decimal Monto { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class PagedCobrosResponse
+{
+    public List<CobroDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}

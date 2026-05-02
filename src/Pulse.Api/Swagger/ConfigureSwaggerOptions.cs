@@ -22,25 +22,27 @@ public sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provi
                 });
         }
 
-        var bearerScheme = new OpenApiSecurityScheme
-        {
-            Description = "JWT: encabezado Authorization con valor Bearer {token}",
-            Name = "Authorization",
-            In = ParameterLocation.Header,
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT"
-        };
-
-        options.AddSecurityDefinition("Bearer", bearerScheme);
-
-        options.AddSecurityRequirement(
-            _ => new OpenApiSecurityRequirement
+        options.AddSecurityDefinition(
+            "Bearer",
+            new OpenApiSecurityScheme
             {
-                {
-                    new OpenApiSecuritySchemeReference("Bearer"),
-                    new List<string>()
-                }
+                Description = "JWT: encabezado Authorization con valor Bearer {token}",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT"
             });
+
+        // Aplica el esquema Bearer a todos los endpoints globalmente.
+        // Swashbuckle 10 + Microsoft.OpenApi v2: AddSecurityRequirement recibe un Func<OpenApiDocument, ...>
+        // y la referencia se expresa con OpenApiSecuritySchemeReference("Bearer").
+        options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecuritySchemeReference("Bearer"),
+                new List<string>()
+            }
+        });
     }
 }

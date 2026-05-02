@@ -380,6 +380,120 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
         return new PagedClientesResponse { Items = items, NextCursor = next };
     }
 
+    public async Task<PagedVentasResponse> PullVentasAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.Ventas.AsNoTracking().Where(v => v.TenantId == tenantId);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var c = cur.UpdatedAt; // slot reused for CreatedAt
+            var id = cur.Id;
+            q = q.Where(v => v.CreatedAt > c || (v.CreatedAt == c && v.Id > id));
+        }
+        else if (createdSince.HasValue)
+        {
+            q = q.Where(v => v.CreatedAt > createdSince.Value);
+        }
+
+        var rows = await q
+            .Include(v => v.Lineas)
+            .OrderBy(v => v.CreatedAt).ThenBy(v => v.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.CreatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var ventaIds = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (ventaIds.Count > 0)
+        {
+            localIds = await db.VentaLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && ventaIds.Contains(m.VentaId))
+                .ToDictionaryAsync(m => m.VentaId, m => m.LocalId, ct);
+        }
+
+        var items = rows.Select(v => new VentaDto
+        {
+            Id = v.Id,
+            LocalId = localIds.TryGetValue(v.Id, out var vlid) ? vlid : null,
+            Fecha = v.Fecha,
+            Total = v.Total,
+            MetodoPago = v.MetodoPago,
+            Estado = v.Estado,
+            ClienteId = v.ClienteId,
+            CreatedAt = v.CreatedAt,
+            Lineas = v.Lineas.Select(l => new VentaLineaDto
+            {
+                Id = l.Id,
+                Descripcion = l.Descripcion,
+                Cantidad = l.Cantidad,
+                PrecioUnitario = l.PrecioUnitario,
+                Subtotal = l.Subtotal,
+                ProductoId = l.ProductoId
+            }).ToList()
+        }).ToList();
+
+        return new PagedVentasResponse { Items = items, NextCursor = next };
+    }
+
+    public async Task<PagedCobrosResponse> PullCobrosAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.Cobros.AsNoTracking().Where(c => c.TenantId == tenantId);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var ca = cur.UpdatedAt; // slot reused for CreatedAt
+            var id = cur.Id;
+            q = q.Where(c => c.CreatedAt > ca || (c.CreatedAt == ca && c.Id > id));
+        }
+        else if (createdSince.HasValue)
+        {
+            q = q.Where(c => c.CreatedAt > createdSince.Value);
+        }
+
+        var rows = await q
+            .OrderBy(c => c.CreatedAt).ThenBy(c => c.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.CreatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var cobroIds = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (cobroIds.Count > 0)
+        {
+            localIds = await db.CobroLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && cobroIds.Contains(m.CobroId))
+                .ToDictionaryAsync(m => m.CobroId, m => m.LocalId, ct);
+        }
+
+        var items = rows.Select(c => new CobroDto
+        {
+            Id = c.Id,
+            LocalId = localIds.TryGetValue(c.Id, out var clid) ? clid : null,
+            ClienteId = c.ClienteId,
+            Monto = c.Monto,
+            Fecha = c.Fecha,
+            CreatedAt = c.CreatedAt
+        }).ToList();
+
+        return new PagedCobrosResponse { Items = items, NextCursor = next };
+    }
+
     private async Task<Guid?> FindMutationAsync(Guid tenantId, string mutationId, string entityType, long localId, CancellationToken ct)
     {
         var row = await db.ProcessedMutations.AsNoTracking()

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet list *)",
+      "Bash(git *)",
+      "Bash(dotnet build *)",
+      "Bash(mkdir -p /tmp/openapi_test)",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(dotnet run *)"
+    ]
+  }
+}

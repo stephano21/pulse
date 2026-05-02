@@ -10,4 +10,6 @@ public interface ISyncService
     Task<SyncBatchResponse> PushCobrosAsync(Guid tenantId, CobrosSyncRequest request, CancellationToken ct);
     Task<PagedProductosResponse> PullProductosAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
     Task<PagedClientesResponse> PullClientesAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
+    Task<PagedVentasResponse> PullVentasAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
+    Task<PagedCobrosResponse> PullCobrosAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
 }
