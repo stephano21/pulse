@@ -34,15 +34,8 @@ public sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provi
                 BearerFormat = "JWT"
             });
 
-        // Aplica el esquema Bearer a todos los endpoints globalmente.
-        // Swashbuckle 10 + Microsoft.OpenApi v2: AddSecurityRequirement recibe un Func<OpenApiDocument, ...>
-        // y la referencia se expresa con OpenApiSecuritySchemeReference("Bearer").
-        options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecuritySchemeReference("Bearer"),
-                new List<string>()
-            }
-        });
+        // BearerSecurityRequirementFilter agrega security: [{Bearer: []}] a cada operación,
+        // lo que hace que Swagger UI muestre el candado por endpoint.
+        options.OperationFilter<BearerSecurityRequirementFilter>();
     }
 }
