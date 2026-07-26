@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pulse.Application.Abstractions;
+using Pulse.Infrastructure.Auth;
 using Pulse.Infrastructure.Data;
 using Pulse.Infrastructure.Email;
 using Pulse.Infrastructure.Identity;
@@ -73,6 +74,7 @@ public static class DependencyInjection
             services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
         services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         return services;
     }
 }

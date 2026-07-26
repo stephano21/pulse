@@ -12,6 +12,7 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
     private const string EntityCliente = "cliente";
     private const string EntityVenta = "venta";
     private const string EntityCobro = "cobro";
+    private const string EntityUnidad = "unidad";
 
     public async Task<SyncBatchResponse> PushProductosAsync(Guid tenantId, ProductosSyncRequest request, CancellationToken ct)
     {
@@ -31,6 +32,23 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
             var mapping = await db.ProductLocalMappings
                 .Include(m => m.Product)
                 .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+
+            if (item.Deleted)
+            {
+                if (mapping?.Product != null)
+                {
+                    mapping.Product.DeletedAt = DateTimeOffset.UtcNow;
+                    mapping.Product.UpdatedAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                    await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityProducto, item.LocalId, mapping.Product.Id, "deleted", ct);
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = mapping.Product.Id, Status = "deleted" });
+                }
+                else
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = Guid.Empty, Status = "deleted" });
+                }
+                continue;
+            }
 
             if (mapping?.Product != null)
             {
@@ -94,6 +112,23 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
             var mapping = await db.ClienteLocalMappings
                 .Include(m => m.Cliente)
                 .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+
+            if (item.Deleted)
+            {
+                if (mapping?.Cliente != null)
+                {
+                    mapping.Cliente.DeletedAt = DateTimeOffset.UtcNow;
+                    mapping.Cliente.UpdatedAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                    await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityCliente, item.LocalId, mapping.Cliente.Id, "deleted", ct);
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = mapping.Cliente.Id, Status = "deleted" });
+                }
+                else
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = Guid.Empty, Status = "deleted" });
+                }
+                continue;
+            }
 
             if (mapping?.Cliente != null)
             {
@@ -276,6 +311,80 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
         return new SyncBatchResponse { Results = results };
     }
 
+    public async Task<SyncBatchResponse> PushUnidadesAsync(Guid tenantId, UnidadesSyncRequest request, CancellationToken ct)
+    {
+        var results = new List<SyncResultItem>();
+        foreach (var item in request.Items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.MutationId))
+            {
+                var dup = await FindMutationAsync(tenantId, item.MutationId, EntityUnidad, item.LocalId, ct);
+                if (dup != null)
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = dup.Value, Status = "duplicate" });
+                    continue;
+                }
+            }
+
+            var mapping = await db.UnidadMedidaLocalMappings
+                .Include(m => m.Unidad)
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+
+            if (item.Deleted)
+            {
+                if (mapping?.Unidad != null)
+                {
+                    mapping.Unidad.DeletedAt = DateTimeOffset.UtcNow;
+                    mapping.Unidad.UpdatedAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                    await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityUnidad, item.LocalId, mapping.Unidad.Id, "deleted", ct);
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = mapping.Unidad.Id, Status = "deleted" });
+                }
+                else
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = Guid.Empty, Status = "deleted" });
+                }
+                continue;
+            }
+
+            if (mapping?.Unidad != null)
+            {
+                var u = mapping.Unidad;
+                u.Nombre = item.Nombre;
+                u.Unidades = item.Unidades;
+                u.UpdatedAt = ClockMax(u.UpdatedAt, item.ClientUpdatedAt);
+                await db.SaveChangesAsync(ct);
+                await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityUnidad, item.LocalId, u.Id, "updated", ct);
+                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = u.Id, Status = "updated" });
+                continue;
+            }
+
+            var unidad = new UnidadMedida
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                Nombre = item.Nombre,
+                Unidades = item.Unidades,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = item.ClientUpdatedAt
+            };
+            db.Unidades.Add(unidad);
+            db.UnidadMedidaLocalMappings.Add(new UnidadMedidaLocalMapping
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                LocalId = item.LocalId,
+                UnidadId = unidad.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityUnidad, item.LocalId, unidad.Id, "created", ct);
+            results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = unidad.Id, Status = "created" });
+        }
+
+        return new SyncBatchResponse { Results = results };
+    }
+
     public async Task<PagedProductosResponse> PullProductosAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct)
     {
         limit = Math.Clamp(limit, 1, 500);
@@ -332,7 +441,7 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
     public async Task<PagedClientesResponse> PullClientesAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct)
     {
         limit = Math.Clamp(limit, 1, 500);
-        var q = db.Clientes.AsNoTracking().Where(c => c.TenantId == tenantId);
+        var q = db.Clientes.AsNoTracking().Where(c => c.TenantId == tenantId && c.DeletedAt == null);
 
         if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
         {
@@ -492,6 +601,56 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
         }).ToList();
 
         return new PagedCobrosResponse { Items = items, NextCursor = next };
+    }
+
+    public async Task<PagedUnidadesResponse> PullUnidadesAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.Unidades.AsNoTracking().Where(u => u.TenantId == tenantId && u.DeletedAt == null);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var u = cur.UpdatedAt;
+            var id = cur.Id;
+            q = q.Where(x => x.UpdatedAt > u || (x.UpdatedAt == u && x.Id > id));
+        }
+        else if (updatedSince.HasValue)
+        {
+            q = q.Where(x => x.UpdatedAt > updatedSince.Value);
+        }
+
+        var rows = await q
+            .OrderBy(x => x.UpdatedAt).ThenBy(x => x.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.UpdatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var unidadIds = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (unidadIds.Count > 0)
+        {
+            localIds = await db.UnidadMedidaLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && unidadIds.Contains(m.UnidadId))
+                .ToDictionaryAsync(m => m.UnidadId, m => m.LocalId, ct);
+        }
+
+        var items = rows.Select(u => new UnidadDto
+        {
+            Id = u.Id,
+            LocalId = localIds.TryGetValue(u.Id, out var ulid) ? ulid : null,
+            Nombre = u.Nombre,
+            Unidades = u.Unidades,
+            UpdatedAt = u.UpdatedAt
+        }).ToList();
+
+        return new PagedUnidadesResponse { Items = items, NextCursor = next };
     }
 
     private async Task<Guid?> FindMutationAsync(Guid tenantId, string mutationId, string entityType, long localId, CancellationToken ct)

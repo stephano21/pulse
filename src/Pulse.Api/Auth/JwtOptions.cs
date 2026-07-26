@@ -14,4 +14,7 @@ public sealed class JwtOptions
 
     /// <summary>Si es true, las respuestas 401 JWT pueden incluir detalle en <c>WWW-Authenticate</c> (solo depuración).</summary>
     public bool IncludeErrorDetails { get; set; }
+
+    /// <summary>Vida útil del refresh token en días. Rota en cada uso exitoso (el reloj se reinicia).</summary>
+    public int RefreshTokenLifetimeDays { get; set; } = 60;
 }

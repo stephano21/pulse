@@ -44,6 +44,14 @@ public sealed class SyncController(ISyncService sync) : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("unidades")]
+    public async Task<ActionResult<SyncBatchResponse>> PushUnidades([FromBody] UnidadesSyncRequest body, CancellationToken ct)
+    {
+        var tid = TenantId();
+        var result = await sync.PushUnidadesAsync(tid, body, ct);
+        return Ok(result);
+    }
+
     private Guid TenantId()
     {
         var v = User.FindFirst("tenant_id")?.Value;

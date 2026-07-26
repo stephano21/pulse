@@ -45,6 +45,7 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=pulse;Username=pulse;Password=pulse_dev_2026"
       Jwt__Issuer: pulse
       Jwt__Audience: yapa
+      Jwt__RefreshTokenLifetimeDays: "60"
       JWTKey: "docker-dev-signing-key-at-least-32-characters-long!!"
       App__PublicBaseUrl: "http://localhost:8080"
       # Mismo Client ID que "Aplicación web" en Google Cloud (audience del id_token). Vacío => POST /v1/auth/google responde 503.

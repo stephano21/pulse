@@ -42,6 +42,7 @@ public sealed class Cliente
     public decimal SaldoAFavor { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }
 
 public sealed class ClienteLocalMapping
@@ -136,4 +137,45 @@ public sealed class ProcessedMutation
     public Guid RemoteId { get; set; }
     public string Status { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class UnidadMedida
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Tenant? Tenant { get; set; }
+    public string Nombre { get; set; } = "";
+    public int Unidades { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+}
+
+public sealed class UnidadMedidaLocalMapping
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public long LocalId { get; set; }
+    public Guid UnidadId { get; set; }
+    public UnidadMedida? Unidad { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class RefreshToken
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+
+    /// <summary>SHA-256 hex del valor crudo entregado al cliente; el valor crudo nunca se persiste.</summary>
+    public string TokenHash { get; set; } = "";
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    /// <summary>Hash del token que lo reemplazó al rotar (auditoría de la cadena de rotación).</summary>
+    public string? ReplacedByTokenHash { get; set; }
+
+    public string? CreatedByIp { get; set; }
 }

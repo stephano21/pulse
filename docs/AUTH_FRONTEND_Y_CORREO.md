@@ -94,12 +94,13 @@ Para cambiar el enlace del correo a tu dominio del front, habría que ajustar el
 ```json
 {
   "access_token": "<JWT>",
+  "refresh_token": "<opaco, base64url>",
   "token_type": "Bearer",
   "expires_in": 43200
 }
 ```
 
-`expires_in` está en **segundos** (12 horas).
+`expires_in` está en **segundos** (12 horas). `refresh_token` dura **60 días** (`Jwt:RefreshTokenLifetimeDays`) y **rota** en cada uso: cada llamada a `/v1/auth/refresh` devuelve un refresh token nuevo y revoca el anterior (uso único). Guarda siempre el `refresh_token` más reciente; reusar uno ya rotado devuelve 401.
 
 **401**: credenciales incorrectas o usuario inexistente (sin detalles por seguridad).
 
@@ -114,6 +115,32 @@ Authorization: Bearer <access_token>
 ```
 
 Claims útiles del JWT (referencia): `sub` (id usuario), `tenant_id`, `email`, `scope` (p. ej. `sync:read`, `sync:write`).
+
+### 3.1 Renovar sesión: `POST /v1/auth/refresh`
+
+Cuando el `access_token` expira (o antes, de forma proactiva), pide uno nuevo sin pedir contraseña de nuevo:
+
+```http
+POST /v1/auth/refresh
+Content-Type: application/json
+
+{ "refresh_token": "<el último refresh_token guardado>" }
+```
+
+**200**: misma forma que login/google (`access_token`, `refresh_token` nuevo, `token_type`, `expires_in`) — **reemplaza** el `refresh_token` guardado por el nuevo.
+
+**401**: el refresh token es inválido, expiró, ya fue revocado, o ya fue usado antes (rotación de un solo uso — reintentar con el token viejo tras una rotación exitosa siempre da 401). En ese caso no queda otra que volver a `/v1/auth/login` o `/v1/auth/google`.
+
+### 3.2 Cerrar sesión: `POST /v1/auth/logout`
+
+```http
+POST /v1/auth/logout
+Content-Type: application/json
+
+{ "refresh_token": "<refresh_token actual>" }
+```
+
+**204**: revoca el refresh token del lado del servidor (idempotente: no falla aunque el token ya sea inválido). El cliente debe además borrar `access_token`/`refresh_token` de su almacenamiento local. No requiere `Authorization: Bearer` — poseer el refresh token ya es prueba suficiente para revocarlo.
 
 ---
 

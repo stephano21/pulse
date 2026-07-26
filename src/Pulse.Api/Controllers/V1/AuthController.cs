@@ -18,13 +18,16 @@ namespace Pulse.Api.Controllers.V1;
 [Route("v{version:apiVersion}/auth")]
 public sealed class AuthController(
     TokenService tokens,
+    IRefreshTokenService refreshTokens,
     UserManager<ApplicationUser> userManager,
     IEmailSender emailSender,
     IOptions<AppOptions> appOptions,
-    IOptions<GoogleAuthOptions> googleOptions) : ControllerBase
+    IOptions<GoogleAuthOptions> googleOptions,
+    IOptions<JwtOptions> jwtOptions) : ControllerBase
 {
     private readonly AppOptions _app = appOptions.Value;
     private readonly GoogleAuthOptions _google = googleOptions.Value;
+    private readonly JwtOptions _jwt = jwtOptions.Value;
 
     public sealed class RegisterRequest
     {
@@ -48,6 +51,18 @@ public sealed class AuthController(
         /// <summary>ID token JWT devuelto por Google Sign-In (cliente).</summary>
         public string IdToken { get; set; } = "";
     }
+
+    public sealed class RefreshRequest
+    {
+        public string RefreshToken { get; set; } = "";
+    }
+
+    public sealed class LogoutRequest
+    {
+        public string RefreshToken { get; set; } = "";
+    }
+
+    private string? ClientIp() => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     /// <summary>Registro con correo y contraseña. Envía enlace de confirmación (en desarrollo se registra en logs).</summary>
     [HttpPost("register")]
@@ -148,7 +163,14 @@ public sealed class AuthController(
 
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
         var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
-        return Ok(new { access_token = accessToken, token_type = "Bearer", expires_in = 12 * 3600 });
+        var refresh = await refreshTokens.IssueAsync(tenantId, user.Id, _jwt.RefreshTokenLifetimeDays, ClientIp(), HttpContext.RequestAborted);
+        return Ok(new
+        {
+            access_token = accessToken,
+            refresh_token = refresh.RawToken,
+            token_type = "Bearer",
+            expires_in = 12 * 3600
+        });
     }
 
     /// <summary>Vuelve a enviar el enlace de confirmación.</summary>
@@ -267,7 +289,46 @@ public sealed class AuthController(
 
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
         var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
-        return Ok(new { access_token = accessToken, token_type = "Bearer", expires_in = 12 * 3600 });
+        var refresh = await refreshTokens.IssueAsync(tenantId, user.Id, _jwt.RefreshTokenLifetimeDays, ClientIp(), HttpContext.RequestAborted);
+        return Ok(new
+        {
+            access_token = accessToken,
+            refresh_token = refresh.RawToken,
+            token_type = "Bearer",
+            expires_in = 12 * 3600
+        });
+    }
+
+    /// <summary>Rota el refresh token y emite un nuevo access token. El refresh token presentado queda revocado (uso único).</summary>
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Refresh([FromBody] RefreshRequest body, CancellationToken ct)
+    {
+        var result = await refreshTokens.ValidateAndRotateAsync(body.RefreshToken, _jwt.RefreshTokenLifetimeDays, ClientIp(), ct);
+        if (!result.Success || result.TenantId is null || result.UserId is null || result.NewRawToken is null)
+            return Unauthorized();
+
+        var user = await userManager.FindByIdAsync(result.UserId.Value.ToString());
+        if (user is null)
+            return Unauthorized();
+
+        var accessToken = tokens.CreateAccessToken(result.TenantId.Value, user.Id.ToString(), user.Email);
+        return Ok(new
+        {
+            access_token = accessToken,
+            refresh_token = result.NewRawToken,
+            token_type = "Bearer",
+            expires_in = 12 * 3600
+        });
+    }
+
+    /// <summary>Revoca el refresh token (cierre de sesión). Idempotente: nunca falla aunque el token ya sea inválido.</summary>
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest body, CancellationToken ct)
+    {
+        await refreshTokens.RevokeAsync(body.RefreshToken, ct);
+        return NoContent();
     }
 
     private static string? NormalizePictureUrl(string? picture) =>

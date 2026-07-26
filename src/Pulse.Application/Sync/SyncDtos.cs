@@ -25,6 +25,7 @@ public sealed class ProductoSyncItem
     public decimal? PrecioMinimo { get; set; }
     public int Stock { get; set; }
     public DateTimeOffset ClientUpdatedAt { get; set; }
+    public bool Deleted { get; set; }
 }
 
 public sealed class ProductosSyncRequest
@@ -40,6 +41,7 @@ public sealed class ClienteSyncItem
     public decimal DeudaInicial { get; set; }
     public decimal SaldoAFavor { get; set; }
     public DateTimeOffset ClientUpdatedAt { get; set; }
+    public bool Deleted { get; set; }
 }
 
 public sealed class ClientesSyncRequest
@@ -175,5 +177,35 @@ public sealed class CobroDto
 public sealed class PagedCobrosResponse
 {
     public List<CobroDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}
+
+public sealed class UnidadSyncItem
+{
+    public long LocalId { get; set; }
+    public string? MutationId { get; set; }
+    public string Nombre { get; set; } = "";
+    public int Unidades { get; set; }
+    public DateTimeOffset ClientUpdatedAt { get; set; }
+    public bool Deleted { get; set; }
+}
+
+public sealed class UnidadesSyncRequest
+{
+    public List<UnidadSyncItem> Items { get; set; } = [];
+}
+
+public sealed class UnidadDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public string Nombre { get; set; } = "";
+    public int Unidades { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class PagedUnidadesResponse
+{
+    public List<UnidadDto> Items { get; set; } = [];
     public string? NextCursor { get; set; }
 }
