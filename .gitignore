@@ -6,3 +6,5 @@ obj/
 *.db-wal
 .vs/
 .idea/
+.env
+.env.prod
