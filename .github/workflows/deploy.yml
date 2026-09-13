@@ -6,7 +6,7 @@ on:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}:latest
-  REMOTE_APP_DIR: /home/deploy-user/apps/pulse
+  REMOTE_APP_DIR: /home/projects/pulse
 
 jobs:
   build-and-push:
