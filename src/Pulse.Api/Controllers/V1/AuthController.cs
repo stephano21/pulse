@@ -162,7 +162,8 @@ public sealed class AuthController(
         await userManager.UpdateAsync(user);
 
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
-        var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
+        var roles = await userManager.GetRolesAsync(user);
+        var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email, roles: roles);
         var refresh = await refreshTokens.IssueAsync(tenantId, user.Id, _jwt.RefreshTokenLifetimeDays, ClientIp(), HttpContext.RequestAborted);
         return Ok(new
         {
@@ -288,7 +289,8 @@ public sealed class AuthController(
         await userManager.UpdateAsync(user);
 
         var tenantId = user.TenantId ?? _app.DefaultTenantId;
-        var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email);
+        var roles = await userManager.GetRolesAsync(user);
+        var accessToken = tokens.CreateAccessToken(tenantId, user.Id.ToString(), user.Email, roles: roles);
         var refresh = await refreshTokens.IssueAsync(tenantId, user.Id, _jwt.RefreshTokenLifetimeDays, ClientIp(), HttpContext.RequestAborted);
         return Ok(new
         {
@@ -312,7 +314,8 @@ public sealed class AuthController(
         if (user is null)
             return Unauthorized();
 
-        var accessToken = tokens.CreateAccessToken(result.TenantId.Value, user.Id.ToString(), user.Email);
+        var roles = await userManager.GetRolesAsync(user);
+        var accessToken = tokens.CreateAccessToken(result.TenantId.Value, user.Id.ToString(), user.Email, roles: roles);
         return Ok(new
         {
             access_token = accessToken,

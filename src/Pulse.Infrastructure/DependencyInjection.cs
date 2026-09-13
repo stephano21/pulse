@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pulse.Application.Abstractions;
+using Pulse.Infrastructure.Admin;
 using Pulse.Infrastructure.Auth;
 using Pulse.Infrastructure.Data;
 using Pulse.Infrastructure.Email;
@@ -75,6 +76,7 @@ public static class DependencyInjection
 
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<IAdminService, AdminService>();
         return services;
     }
 }

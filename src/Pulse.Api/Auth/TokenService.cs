@@ -11,7 +11,12 @@ namespace Pulse.Api.Auth;
 /// </summary>
 public sealed class TokenService(IOptions<JwtOptions> jwtOptions)
 {
-    public string CreateAccessToken(Guid tenantId, string subject, string? email = null, IEnumerable<string>? scopes = null)
+    public string CreateAccessToken(
+        Guid tenantId,
+        string subject,
+        string? email = null,
+        IEnumerable<string>? scopes = null,
+        IEnumerable<string>? roles = null)
     {
         var opt = jwtOptions.Value;
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opt.SigningKey));
@@ -26,6 +31,8 @@ public sealed class TokenService(IOptions<JwtOptions> jwtOptions)
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
         foreach (var s in scopes ?? ["sync:read", "sync:write"])
             claims.Add(new Claim("scope", s));
+        foreach (var r in roles ?? [])
+            claims.Add(new Claim(ClaimTypes.Role, r));
 
         var token = new JwtSecurityToken(
             issuer: opt.Issuer,

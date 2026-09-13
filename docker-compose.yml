@@ -55,6 +55,9 @@ services:
       Email__FromAddress: "noreply@pulse.local"
       Email__FromName: "Pulse"
       Email__SslMode: "None"
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      # Correo(s) a promover a SuperAdmin en cada arranque (idempotente). Vacío por defecto.
+      App__SuperAdminEmails__0: ""
     depends_on:
       postgres:
         condition: service_healthy
