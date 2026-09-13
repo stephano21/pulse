@@ -1,0 +1,66 @@
+# Pulse API + PostgreSQL para producción (pulse.stynger.online).
+# Diferencias vs. docker-compose.yml (dev):
+#   - Sin mailpit (usa un SMTP real vía variables de entorno).
+#   - Puertos publicados solo en 127.0.0.1 (el Nginx del host hace reverse proxy).
+#   - Secretos vienen de .env, no hardcodeados.
+#   - La imagen de "api" se construye en GitHub Actions y se sube a GHCR
+#     (este servidor solo la descarga: no hay disco suficiente para
+#     compilar el SDK de .NET localmente).
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml --env-file .env pull
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pulse_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - app-network
+
+  api:
+    image: ghcr.io/stephano21/pulse:latest
+    container_name: pulse-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__Issuer: pulse
+      Jwt__Audience: yapa
+      Jwt__RefreshTokenLifetimeDays: "60"
+      JWTKey: ${JWTKey}
+      App__PublicBaseUrl: "https://pulse.stynger.online"
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-noreply@stynger.online}
+      Email__FromName: Pulse
+      Email__SslMode: ${EMAIL_SSL_MODE:-StartTls}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+
+volumes:
+  pulse_pg_data:
