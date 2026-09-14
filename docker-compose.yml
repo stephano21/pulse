@@ -58,6 +58,9 @@ services:
       Cors__AllowedOrigins__0: "http://localhost:5173"
       # Correo(s) a promover a SuperAdmin en cada arranque (idempotente). Vacío por defecto.
       App__SuperAdminEmails__0: ""
+      # Crea (una sola vez) esta cuenta como SuperAdmin si aún no existe. Solo para desarrollo local.
+      App__SuperAdminSeed__Email: "admin@pulse.local"
+      App__SuperAdminSeed__Password: "Admin123!"
     depends_on:
       postgres:
         condition: service_healthy
