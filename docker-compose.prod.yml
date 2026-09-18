@@ -55,10 +55,11 @@ services:
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-noreply@stynger.online}
       Email__FromName: Pulse
       Email__SslMode: ${EMAIL_SSL_MODE:-StartTls}
-      # admin.pulse.stynger.online: panel admin desplegado. localhost:5173: panel admin corrido
-      # en local (npm run dev) apuntando a esta API remota.
+      # admin.pulse.stynger.online / yapa-admin.stynger.online: panel admin desplegado.
+      # localhost:5173: panel admin corrido en local (npm run dev) apuntando a esta API remota.
       Cors__AllowedOrigins__0: "https://admin.pulse.stynger.online"
-      Cors__AllowedOrigins__1: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "https://yapa-admin.stynger.online"
+      Cors__AllowedOrigins__2: "http://localhost:5173"
       # Crea (una sola vez) esta cuenta como SuperAdmin si aún no existe. Definir en el .env del servidor.
       App__SuperAdminSeed__Email: ${SUPERADMIN_EMAIL:-}
       App__SuperAdminSeed__Password: ${SUPERADMIN_PASSWORD:-}
