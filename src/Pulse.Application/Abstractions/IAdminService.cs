@@ -14,6 +14,9 @@ public interface IAdminService
     /// <summary>Promueve/revoca SuperAdmin. Devuelve false si la operación dejaría el sistema sin ningún SuperAdmin.</summary>
     Task<bool> SetSuperAdminAsync(Guid userId, bool enabled, CancellationToken ct);
 
+    /// <summary>Marca/desmarca el correo como confirmado a mano (soporte). Devuelve false si el usuario no existe.</summary>
+    Task<bool> SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct);
+
     /// <summary>Corrige manualmente el stock de un producto. Devuelve null si el producto no existe en el tenant.</summary>
     Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct);
 

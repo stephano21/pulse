@@ -17,6 +17,11 @@ public sealed class AdminUsersController(IAdminService admin) : ControllerBase
         public bool Enabled { get; set; }
     }
 
+    public sealed class SetEmailConfirmedRequest
+    {
+        public bool Enabled { get; set; }
+    }
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery(Name = "tenant_id")] Guid? tenantId, CancellationToken ct)
     {
@@ -33,6 +38,16 @@ public sealed class AdminUsersController(IAdminService admin) : ControllerBase
                 title: "No se pudo actualizar el rol",
                 detail: "El usuario no existe o esta acción dejaría el sistema sin ningún SuperAdmin.",
                 statusCode: StatusCodes.Status409Conflict);
+
+        return NoContent();
+    }
+
+    [HttpPut("{userId:guid}/email-confirmed")]
+    public async Task<IActionResult> SetEmailConfirmed(Guid userId, [FromBody] SetEmailConfirmedRequest body, CancellationToken ct)
+    {
+        var ok = await admin.SetEmailConfirmedAsync(userId, body.Enabled, ct);
+        if (!ok)
+            return NotFound();
 
         return NoContent();
     }

@@ -106,6 +106,20 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return true;
     }
 
+    public async Task<bool> SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return false;
+
+        if (user.EmailConfirmed == confirmed)
+            return true;
+
+        user.EmailConfirmed = confirmed;
+        var result = await userManager.UpdateAsync(user);
+        return result.Succeeded;
+    }
+
     public async Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct)
     {
         var producto = await db.Products
