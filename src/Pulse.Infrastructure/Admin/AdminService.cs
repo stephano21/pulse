@@ -35,6 +35,19 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return new AdminTenantDto(tenant.Id, tenant.Name, tenant.CreatedAt, 0);
     }
 
+    public async Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, CancellationToken ct)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        tenant.Name = name.Trim();
+        await db.SaveChangesAsync(ct);
+
+        var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
+        return new AdminTenantDto(tenant.Id, tenant.Name, tenant.CreatedAt, userCount);
+    }
+
     public async Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct)
     {
         var users = await (

@@ -17,6 +17,11 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
         public string Name { get; set; } = "";
     }
 
+    public sealed class UpdateTenantRequest
+    {
+        public string Name { get; set; } = "";
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -39,5 +44,15 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
 
         var tenant = await admin.CreateTenantAsync(body.Name, ct);
         return CreatedAtAction(nameof(Get), new { tenantId = tenant.Id, version = "1.0" }, tenant);
+    }
+
+    [HttpPut("{tenantId:guid}")]
+    public async Task<IActionResult> Update(Guid tenantId, [FromBody] UpdateTenantRequest body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body.Name))
+            return Problem(title: "Nombre requerido", statusCode: StatusCodes.Status400BadRequest);
+
+        var tenant = await admin.UpdateTenantAsync(tenantId, body.Name, ct);
+        return tenant is null ? NotFound() : Ok(tenant);
     }
 }
