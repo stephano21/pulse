@@ -15,6 +15,10 @@ public interface IAdminService
     /// tenant no existe; lanza InvalidOperationException si el archivo no existe o es de otro tenant.
     /// </summary>
     Task<AdminTenantDto?> SetTenantLogoAsync(Guid tenantId, Guid fileId, CancellationToken ct);
+
+    /// <summary>Como SetTenantLogoAsync, pero sin exigir que el archivo pertenezca al tenant (lo usa /v1/admin, el SuperAdmin gestiona cualquier tenant).</summary>
+    Task<AdminTenantDto?> SetTenantLogoAdminAsync(Guid tenantId, Guid fileId, CancellationToken ct);
+
     Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct);
 
     /// <summary>

@@ -23,6 +23,12 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
         public string? NotificationEmail { get; set; }
     }
 
+    public sealed class SetTenantLogoRequest
+    {
+        /// <summary>Id devuelto por POST /v1/files — subí el archivo primero, después asociálo acá.</summary>
+        public Guid FileId { get; set; }
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -54,6 +60,13 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
             return Problem(title: "Nombre requerido", statusCode: StatusCodes.Status400BadRequest);
 
         var tenant = await admin.UpdateTenantAsync(tenantId, body.Name, body.NotificationEmail, ct);
+        return tenant is null ? NotFound() : Ok(tenant);
+    }
+
+    [HttpPut("{tenantId:guid}/logo")]
+    public async Task<IActionResult> SetLogo(Guid tenantId, [FromBody] SetTenantLogoRequest body, CancellationToken ct)
+    {
+        var tenant = await admin.SetTenantLogoAdminAsync(tenantId, body.FileId, ct);
         return tenant is null ? NotFound() : Ok(tenant);
     }
 }

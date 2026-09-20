@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Pulse.Application.Abstractions;
 using Pulse.Application.Email;
@@ -12,11 +13,14 @@ namespace Pulse.Api.Controllers.V1.Admin;
 [ApiVersion("1.0")]
 [Route("v{version:apiVersion}/admin/diagnostics")]
 [Authorize(Roles = Roles.SuperAdmin)]
-public sealed class AdminDiagnosticsController(IEmailSender emailSender, IAdminService admin) : ControllerBase
+public sealed class AdminDiagnosticsController(
+    IEmailSender emailSender,
+    IAdminService admin,
+    UserManager<ApplicationUser> userManager) : ControllerBase
 {
     public sealed class SendTestEmailRequest
     {
-        /// <summary>Vacío = se manda al correo de quien llama (del propio JWT).</summary>
+        /// <summary>Vacío = se manda al correo de quien llama.</summary>
         public string? To { get; set; }
 
         /// <summary>Si se manda, prueba con el Reply-To/nombre configurado en ese tenant.</summary>
@@ -26,9 +30,15 @@ public sealed class AdminDiagnosticsController(IEmailSender emailSender, IAdminS
     [HttpPost("test-email")]
     public async Task<IActionResult> SendTestEmail([FromBody] SendTestEmailRequest body, CancellationToken ct)
     {
-        var to = string.IsNullOrWhiteSpace(body.To)
-            ? User.FindFirst(JwtRegisteredClaimNames.Email)?.Value
-            : body.To.Trim();
+        var to = body.To?.Trim();
+        if (string.IsNullOrWhiteSpace(to))
+        {
+            // No confiamos solo en el claim "email" del JWT (puede faltar en tokens viejos u otros
+            // casos raros de emisión) — resolvemos el correo real desde la base por el claim "sub".
+            var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var caller = sub is null ? null : await userManager.FindByIdAsync(sub);
+            to = caller?.Email;
+        }
 
         if (string.IsNullOrWhiteSpace(to))
             return Problem(title: "Falta destinatario", statusCode: StatusCodes.Status400BadRequest);

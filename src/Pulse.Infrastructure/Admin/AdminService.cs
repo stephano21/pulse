@@ -93,6 +93,26 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return await ToDtoAsync(tenant, userCount, ct);
     }
 
+    public async Task<AdminTenantDto?> SetTenantLogoAdminAsync(Guid tenantId, Guid fileId, CancellationToken ct)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        // A diferencia de SetTenantLogoAsync (usado por /v1/team, un miembro del propio tenant),
+        // acá no exigimos que el archivo pertenezca al tenant: lo sube el SuperAdmin desde su propia
+        // sesión (otro tenant_id en el JWT) para gestionar el negocio de otro.
+        var fileExists = await db.Files.AnyAsync(f => f.Id == fileId, ct);
+        if (!fileExists)
+            throw new InvalidOperationException("El archivo no existe.");
+
+        tenant.LogoFileId = fileId;
+        await db.SaveChangesAsync(ct);
+
+        var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
+        return await ToDtoAsync(tenant, userCount, ct);
+    }
+
     public async Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct)
     {
         var users = await (
