@@ -76,7 +76,8 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
                 x.TenantName,
                 rolesByUserId.TryGetValue(x.User.Id, out var roles) ? roles : Array.Empty<string>(),
                 x.User.LastLoginAt,
-                x.User.CreatedAt))
+                x.User.CreatedAt,
+                x.User.LockoutEnd == null || x.User.LockoutEnd <= DateTimeOffset.UtcNow))
             .ToList();
     }
 
@@ -139,7 +140,56 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
             throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
 
         var tenantName = await db.Tenants.Where(t => t.Id == tenantId).Select(t => t.Name).FirstOrDefaultAsync(ct);
-        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenantName, [], user.LastLoginAt, user.CreatedAt);
+        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenantName, [], user.LastLoginAt, user.CreatedAt, true);
+    }
+
+    public async Task<bool> SetUserActiveAsync(Guid userId, bool active, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return false;
+
+        if (!active && await userManager.IsInRoleAsync(user, Roles.SuperAdmin))
+        {
+            var superAdmins = await userManager.GetUsersInRoleAsync(Roles.SuperAdmin);
+            if (superAdmins.Count <= 1)
+                return false;
+        }
+
+        await userManager.SetLockoutEnabledAsync(user, true);
+        await userManager.SetLockoutEndDateAsync(user, active ? null : DateTimeOffset.MaxValue);
+        return true;
+    }
+
+    public async Task<AdminUserDto?> MoveUserToTenantAsync(Guid userId, Guid tenantId, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return null;
+
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        user.TenantId = tenantId;
+        await userManager.UpdateAsync(user);
+
+        var roles = await userManager.GetRolesAsync(user);
+        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenant.Name, roles.ToArray(), user.LastLoginAt, user.CreatedAt, await userManager.IsLockedOutAsync(user) == false);
+    }
+
+    public async Task<bool> ResetPasswordAsync(Guid userId, string newPassword, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return false;
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
+
+        return true;
     }
 
     public async Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct)

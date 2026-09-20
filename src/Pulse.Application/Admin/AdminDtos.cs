@@ -10,4 +10,5 @@ public sealed record AdminUserDto(
     string? TenantName,
     IReadOnlyList<string> Roles,
     DateTimeOffset? LastLoginAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool Active);

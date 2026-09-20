@@ -25,6 +25,23 @@ public interface IAdminService
     /// <summary>Marca/desmarca el correo como confirmado a mano (soporte). Devuelve false si el usuario no existe.</summary>
     Task<bool> SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct);
 
+    /// <summary>
+    /// Activa/desactiva el acceso del usuario (lockout indefinido de Identity — no puede iniciar
+    /// sesión ni refrescar el token mientras esté inactivo). Devuelve false si el usuario no existe
+    /// o si esta acción dejaría el sistema sin ningún SuperAdmin.
+    /// </summary>
+    Task<bool> SetUserActiveAsync(Guid userId, bool active, CancellationToken ct);
+
+    /// <summary>Mueve un usuario a otro tenant. Devuelve null si el usuario o el tenant destino no existen.</summary>
+    Task<AdminUserDto?> MoveUserToTenantAsync(Guid userId, Guid tenantId, CancellationToken ct);
+
+    /// <summary>
+    /// Restablece la contraseña de un usuario a mano (soporte: perdió el correo, quedó trabado, etc.).
+    /// Devuelve false si el usuario no existe. Lanza InvalidOperationException si la contraseña no
+    /// cumple la política (se mapea a 400).
+    /// </summary>
+    Task<bool> ResetPasswordAsync(Guid userId, string newPassword, CancellationToken ct);
+
     /// <summary>Corrige manualmente el stock de un producto. Devuelve null si el producto no existe en el tenant.</summary>
     Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct);
 

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Pulse.Api.Auth;
 using Pulse.Application.Abstractions;
+using Pulse.Application.Email;
 using Pulse.Infrastructure.Identity;
 
 namespace Pulse.Api.Controllers.V1;
@@ -107,13 +108,12 @@ public sealed class AuthController(
         var confirmUrl =
             $"{_app.PublicBaseUrl.TrimEnd('/')}/v1/auth/confirm-email?user_id={user.Id}&token={tokenEncoded}";
 
-        var html =
-            $"""
-             <p>Activa tu cuenta Pulse pulsando el enlace (o cópialo en el navegador):</p>
-             <p><a href="{confirmUrl}">Confirmar correo</a></p>
-             <p><code>{confirmUrl}</code></p>
-             """;
-        await emailSender.SendEmailAsync(email, "Confirma tu correo — Pulse", html, cancellationToken);
+        var html = EmailTemplate.Render(
+            heading: "Confirmá tu correo",
+            bodyHtml: "<p>Gracias por registrarte en Yapa. Confirmá tu correo para activar tu cuenta y empezar a usarla.</p>",
+            ctaText: "Confirmar correo",
+            ctaUrl: confirmUrl);
+        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, cancellationToken);
 
         return Ok(new { message = "Si el correo es válido, recibirás un enlace de confirmación." });
     }
@@ -166,6 +166,12 @@ public sealed class AuthController(
                 detail: "Confirma tu correo antes de iniciar sesión.",
                 statusCode: StatusCodes.Status403Forbidden);
 
+        if (await userManager.IsLockedOutAsync(user))
+            return Problem(
+                title: "Cuenta desactivada",
+                detail: "Esta cuenta fue desactivada. Contacta al administrador.",
+                statusCode: StatusCodes.Status403Forbidden);
+
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await userManager.UpdateAsync(user);
 
@@ -205,13 +211,12 @@ public sealed class AuthController(
         var confirmUrl =
             $"{_app.PublicBaseUrl.TrimEnd('/')}/v1/auth/confirm-email?user_id={user.Id}&token={tokenEncoded}";
 
-        var html =
-            $"""
-             <p>Confirma tu cuenta Pulse:</p>
-             <p><a href="{confirmUrl}">Confirmar correo</a></p>
-             <p><code>{confirmUrl}</code></p>
-             """;
-        await emailSender.SendEmailAsync(email, "Confirma tu correo — Pulse", html, cancellationToken);
+        var html = EmailTemplate.Render(
+            heading: "Confirmá tu correo",
+            bodyHtml: "<p>Pediste un nuevo enlace para confirmar tu cuenta de Yapa.</p>",
+            ctaText: "Confirmar correo",
+            ctaUrl: confirmUrl);
+        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, cancellationToken);
 
         return Ok(new { message = "Si el correo existe y no está confirmado, recibirás un nuevo enlace." });
     }
@@ -291,6 +296,12 @@ public sealed class AuthController(
                     statusCode: StatusCodes.Status400BadRequest);
         }
 
+        if (await userManager.IsLockedOutAsync(user))
+            return Problem(
+                title: "Cuenta desactivada",
+                detail: "Esta cuenta fue desactivada. Contacta al administrador.",
+                statusCode: StatusCodes.Status403Forbidden);
+
         if (!user.EmailConfirmed)
             user.EmailConfirmed = true;
 
@@ -325,6 +336,9 @@ public sealed class AuthController(
 
         var user = await userManager.FindByIdAsync(result.UserId.Value.ToString());
         if (user is null)
+            return Unauthorized();
+
+        if (await userManager.IsLockedOutAsync(user))
             return Unauthorized();
 
         var roles = await userManager.GetRolesAsync(user);
