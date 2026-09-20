@@ -11,6 +11,14 @@ public interface IAdminService
     Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, CancellationToken ct);
     Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct);
 
+    /// <summary>
+    /// Crea un usuario dentro de un tenant existente, con el correo ya confirmado (lo da de alta
+    /// alguien que ya pertenece al tenant, así que no hace falta el flujo de confirmación por
+    /// correo). Usado por POST /v1/team/users. Lanza InvalidOperationException si Identity
+    /// rechaza el alta (correo duplicado, contraseña débil, etc.).
+    /// </summary>
+    Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, CancellationToken ct);
+
     /// <summary>Promueve/revoca SuperAdmin. Devuelve false si la operación dejaría el sistema sin ningún SuperAdmin.</summary>
     Task<bool> SetSuperAdminAsync(Guid userId, bool enabled, CancellationToken ct);
 

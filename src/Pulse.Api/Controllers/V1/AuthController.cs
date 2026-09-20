@@ -21,6 +21,7 @@ public sealed class AuthController(
     IRefreshTokenService refreshTokens,
     UserManager<ApplicationUser> userManager,
     IEmailSender emailSender,
+    IAdminService admin,
     IOptions<AppOptions> appOptions,
     IOptions<GoogleAuthOptions> googleOptions,
     IOptions<JwtOptions> jwtOptions) : ControllerBase
@@ -33,6 +34,9 @@ public sealed class AuthController(
     {
         public string Email { get; set; } = "";
         public string Password { get; set; } = "";
+
+        /// <summary>Nombre del negocio: se crea como tenant nuevo, propio de este usuario.</summary>
+        public string TenantName { get; set; } = "";
     }
 
     public sealed class LoginRequest
@@ -75,14 +79,18 @@ public sealed class AuthController(
                 detail: "Falta App:PublicBaseUrl para generar el enlace de confirmación.",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
 
+        if (string.IsNullOrWhiteSpace(body.TenantName))
+            return Problem(title: "Nombre del negocio requerido", statusCode: StatusCodes.Status400BadRequest);
+
         var email = body.Email.Trim();
         var now = DateTimeOffset.UtcNow;
+        var tenant = await admin.CreateTenantAsync(body.TenantName, cancellationToken);
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
             UserName = email,
             Email = email,
-            TenantId = _app.DefaultTenantId,
+            TenantId = tenant.Id,
             AuthProvider = AuthProviders.Local,
             CreatedAt = now
         };
@@ -248,13 +256,18 @@ public sealed class AuthController(
             if (user is null)
             {
                 var now = DateTimeOffset.UtcNow;
+                // Google no pide nombre de negocio en el propio flujo, así que usamos el nombre de
+                // perfil (o el usuario del correo como respaldo) como punto de partida; el
+                // SuperAdmin puede renombrar el tenant después desde el admin panel.
+                var tenantName = !string.IsNullOrWhiteSpace(payload.Name) ? payload.Name! : email.Split('@')[0];
+                var tenant = await admin.CreateTenantAsync(tenantName, HttpContext.RequestAborted);
                 user = new ApplicationUser
                 {
                     Id = Guid.NewGuid(),
                     UserName = email,
                     Email = email,
                     EmailConfirmed = true,
-                    TenantId = _app.DefaultTenantId,
+                    TenantId = tenant.Id,
                     AuthProvider = AuthProviders.Google,
                     GoogleSubject = payload.Subject,
                     ProfilePictureUrl = pictureUrl,

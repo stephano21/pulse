@@ -120,6 +120,28 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return result.Succeeded;
     }
 
+    public async Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            TenantId = tenantId,
+            AuthProvider = AuthProviders.Local,
+            CreatedAt = now
+        };
+
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
+
+        var tenantName = await db.Tenants.Where(t => t.Id == tenantId).Select(t => t.Name).FirstOrDefaultAsync(ct);
+        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenantName, [], user.LastLoginAt, user.CreatedAt);
+    }
+
     public async Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct)
     {
         var producto = await db.Products
