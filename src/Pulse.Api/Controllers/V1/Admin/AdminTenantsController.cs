@@ -20,6 +20,7 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
     public sealed class UpdateTenantRequest
     {
         public string Name { get; set; } = "";
+        public string? NotificationEmail { get; set; }
     }
 
     [HttpGet]
@@ -52,7 +53,7 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
         if (string.IsNullOrWhiteSpace(body.Name))
             return Problem(title: "Nombre requerido", statusCode: StatusCodes.Status400BadRequest);
 
-        var tenant = await admin.UpdateTenantAsync(tenantId, body.Name, ct);
+        var tenant = await admin.UpdateTenantAsync(tenantId, body.Name, body.NotificationEmail, ct);
         return tenant is null ? NotFound() : Ok(tenant);
     }
 }

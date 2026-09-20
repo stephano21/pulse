@@ -1,6 +1,6 @@
 namespace Pulse.Application.Admin;
 
-public sealed record AdminTenantDto(Guid Id, string Name, DateTimeOffset CreatedAt, int UserCount);
+public sealed record AdminTenantDto(Guid Id, string Name, DateTimeOffset CreatedAt, int UserCount, string? NotificationEmail, string? LogoUrl);
 
 public sealed record AdminUserDto(
     Guid Id,

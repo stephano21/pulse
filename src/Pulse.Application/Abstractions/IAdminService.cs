@@ -8,7 +8,13 @@ public interface IAdminService
     Task<IReadOnlyList<AdminTenantDto>> ListTenantsAsync(CancellationToken ct);
     Task<AdminTenantDto?> GetTenantAsync(Guid tenantId, CancellationToken ct);
     Task<AdminTenantDto> CreateTenantAsync(string name, CancellationToken ct);
-    Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, CancellationToken ct);
+    Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, string? notificationEmail, CancellationToken ct);
+
+    /// <summary>
+    /// Asocia un archivo ya subido (POST /v1/files) como logo del tenant. Devuelve null si el
+    /// tenant no existe; lanza InvalidOperationException si el archivo no existe o es de otro tenant.
+    /// </summary>
+    Task<AdminTenantDto?> SetTenantLogoAsync(Guid tenantId, Guid fileId, CancellationToken ct);
     Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct);
 
     /// <summary>

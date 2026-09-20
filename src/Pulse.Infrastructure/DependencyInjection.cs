@@ -8,6 +8,7 @@ using Pulse.Infrastructure.Auth;
 using Pulse.Infrastructure.Data;
 using Pulse.Infrastructure.Email;
 using Pulse.Infrastructure.Identity;
+using Pulse.Infrastructure.Storage;
 using Pulse.Infrastructure.Sync;
 
 namespace Pulse.Infrastructure;
@@ -77,6 +78,10 @@ public static class DependencyInjection
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IAdminService, AdminService>();
+
+        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.AddScoped<IFileStorageService, S3FileStorageService>();
+        services.AddScoped<IFileRegistry, FileRegistry>();
         return services;
     }
 }

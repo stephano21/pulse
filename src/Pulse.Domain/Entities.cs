@@ -5,6 +5,39 @@ public sealed class Tenant
     public Guid Id { get; set; }
     public string Name { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// Reply-To (y nombre de marca en el From) para los correos relacionados a este tenant.
+    /// Null = usa el remitente genérico de la app (Email:FromName/FromAddress del .env).
+    /// No es una cuenta SMTP propia: los correos se siguen mandando autenticados con la
+    /// cuenta única configurada en el servidor, esto solo cambia a dónde llegan las respuestas.
+    /// </summary>
+    public string? NotificationEmail { get; set; }
+
+    /// <summary>Referencia a <see cref="StoredFile"/> — el archivo se sube antes por separado (POST /v1/files).</summary>
+    public Guid? LogoFileId { get; set; }
+}
+
+/// <summary>
+/// Tabla genérica de archivos subidos al storage: sin relación fija a ningún tipo de entidad
+/// (Tenant, ApplicationUser, etc. simplemente guardan un Guid que apunta acá). Flujo: subir a
+/// POST /v1/files → queda con Id propio → recién ahí se asocia (ej. PUT /v1/team/tenant/logo).
+/// </summary>
+public sealed class StoredFile
+{
+    public Guid Id { get; set; }
+
+    /// <summary>Key del objeto en el bucket (no una URL): el bucket es privado, la URL se firma al vuelo.</summary>
+    public string Key { get; set; } = "";
+
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+
+    /// <summary>Tenant dueño/alcance del archivo (para poder validar pertenencia al asociarlo). Null = archivo de plataforma.</summary>
+    public Guid? TenantId { get; set; }
+
+    public Guid UploadedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class Product

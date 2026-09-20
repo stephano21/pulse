@@ -24,6 +24,7 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UnidadMedida> Unidades => Set<UnidadMedida>();
     public DbSet<UnidadMedidaLocalMapping> UnidadMedidaLocalMappings => Set<UnidadMedidaLocalMapping>();
+    public DbSet<StoredFile> Files => Set<StoredFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,6 +53,16 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
             e.ToTable("tenants", DatabaseSchemas.Pulse);
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(256);
+            e.Property(x => x.NotificationEmail).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<StoredFile>(e =>
+        {
+            e.ToTable("files", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Key).HasMaxLength(512).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+            e.HasIndex(x => x.TenantId);
         });
 
         modelBuilder.Entity<Product>(e =>

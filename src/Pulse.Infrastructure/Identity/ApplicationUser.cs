@@ -12,7 +12,15 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     /// <summary>Identificador estable de Google (<c>sub</c> del token); trazabilidad sin consultar AspNetUserLogins.</summary>
     public string? GoogleSubject { get; set; }
 
+    /// <summary>URL externa (Google la da al hacer login) — no es nuestro storage.</summary>
     public string? ProfilePictureUrl { get; set; }
+
+    /// <summary>
+    /// Referencia a <see cref="Pulse.Domain.StoredFile"/> subido por el propio usuario
+    /// (POST /v1/files, luego asociado con PUT /v1/profile/photo). Si está seteado, tiene
+    /// prioridad sobre <see cref="ProfilePictureUrl"/>.
+    /// </summary>
+    public Guid? AvatarFileId { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

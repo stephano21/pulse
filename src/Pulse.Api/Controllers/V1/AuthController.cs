@@ -113,7 +113,7 @@ public sealed class AuthController(
             bodyHtml: "<p>Gracias por registrarte en Yapa. Confirmá tu correo para activar tu cuenta y empezar a usarla.</p>",
             ctaText: "Confirmar correo",
             ctaUrl: confirmUrl);
-        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, cancellationToken);
+        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, cancellationToken: cancellationToken);
 
         return Ok(new { message = "Si el correo es válido, recibirás un enlace de confirmación." });
     }
@@ -216,7 +216,19 @@ public sealed class AuthController(
             bodyHtml: "<p>Pediste un nuevo enlace para confirmar tu cuenta de Yapa.</p>",
             ctaText: "Confirmar correo",
             ctaUrl: confirmUrl);
-        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, cancellationToken);
+
+        string? replyTo = null;
+        string? fromName = null;
+        if (user.TenantId.HasValue)
+        {
+            var tenant = await admin.GetTenantAsync(user.TenantId.Value, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(tenant?.NotificationEmail))
+            {
+                replyTo = tenant.NotificationEmail;
+                fromName = $"{tenant.Name} (vía Yapa)";
+            }
+        }
+        await emailSender.SendEmailAsync(email, "Confirmá tu correo — Yapa", html, replyTo, fromName, cancellationToken);
 
         return Ok(new { message = "Si el correo existe y no está confirmado, recibirás un nuevo enlace." });
     }

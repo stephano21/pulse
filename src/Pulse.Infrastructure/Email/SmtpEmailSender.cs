@@ -11,13 +11,21 @@ public sealed class SmtpEmailSender(IOptions<EmailOptions> options, ILogger<Smtp
 {
     private readonly EmailOptions _opt = options.Value;
 
-    public async Task SendEmailAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
+    public async Task SendEmailAsync(
+        string to,
+        string subject,
+        string htmlBody,
+        string? replyTo = null,
+        string? fromName = null,
+        CancellationToken cancellationToken = default)
     {
         if (!_opt.IsSmtpConfigured)
             throw new InvalidOperationException("SMTP no está configurado (Email:Host / Email:FromAddress).");
 
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(_opt.FromName, _opt.FromAddress));
+        message.From.Add(new MailboxAddress(fromName ?? _opt.FromName, _opt.FromAddress));
+        if (!string.IsNullOrWhiteSpace(replyTo))
+            message.ReplyTo.Add(MailboxAddress.Parse(replyTo));
         message.To.Add(MailboxAddress.Parse(to));
         message.Subject = subject;
         message.Body = new TextPart("html") { Text = htmlBody };

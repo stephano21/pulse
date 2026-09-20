@@ -9,22 +9,49 @@ using Pulse.Infrastructure.Identity;
 
 namespace Pulse.Infrastructure.Admin;
 
-public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser> userManager) : IAdminService
+public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser> userManager, IFileStorageService storage) : IAdminService
 {
+    private async Task<string?> ResolveLogoUrlAsync(Guid? logoFileId, CancellationToken ct)
+    {
+        if (!logoFileId.HasValue || !storage.IsConfigured)
+            return null;
+
+        var key = await db.Files.Where(f => f.Id == logoFileId.Value).Select(f => f.Key).FirstOrDefaultAsync(ct);
+        return key is null ? null : storage.GetPresignedUrl(key);
+    }
+
+    private async Task<AdminTenantDto> ToDtoAsync(Tenant tenant, int userCount, CancellationToken ct) =>
+        new(tenant.Id, tenant.Name, tenant.CreatedAt, userCount, tenant.NotificationEmail, await ResolveLogoUrlAsync(tenant.LogoFileId, ct));
+
     public async Task<IReadOnlyList<AdminTenantDto>> ListTenantsAsync(CancellationToken ct)
     {
-        return await db.Tenants
-            .OrderBy(t => t.Name)
-            .Select(t => new AdminTenantDto(t.Id, t.Name, t.CreatedAt, db.Users.Count(u => u.TenantId == t.Id)))
-            .ToListAsync(ct);
+        var tenants = await db.Tenants.OrderBy(t => t.Name).ToListAsync(ct);
+
+        var logoIds = tenants.Where(t => t.LogoFileId.HasValue).Select(t => t.LogoFileId!.Value).Distinct().ToList();
+        var keysById = logoIds.Count > 0 && storage.IsConfigured
+            ? await db.Files.Where(f => logoIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Key, ct)
+            : new Dictionary<Guid, string>();
+
+        var result = new List<AdminTenantDto>();
+        foreach (var t in tenants)
+        {
+            var userCount = await db.Users.CountAsync(u => u.TenantId == t.Id, ct);
+            var logoUrl = t.LogoFileId.HasValue && keysById.TryGetValue(t.LogoFileId.Value, out var key)
+                ? storage.GetPresignedUrl(key)
+                : null;
+            result.Add(new AdminTenantDto(t.Id, t.Name, t.CreatedAt, userCount, t.NotificationEmail, logoUrl));
+        }
+        return result;
     }
 
     public async Task<AdminTenantDto?> GetTenantAsync(Guid tenantId, CancellationToken ct)
     {
-        return await db.Tenants
-            .Where(t => t.Id == tenantId)
-            .Select(t => new AdminTenantDto(t.Id, t.Name, t.CreatedAt, db.Users.Count(u => u.TenantId == t.Id)))
-            .SingleOrDefaultAsync(ct);
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
+        return await ToDtoAsync(tenant, userCount, ct);
     }
 
     public async Task<AdminTenantDto> CreateTenantAsync(string name, CancellationToken ct)
@@ -32,20 +59,38 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         var tenant = new Tenant { Id = Guid.NewGuid(), Name = name.Trim(), CreatedAt = DateTimeOffset.UtcNow };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync(ct);
-        return new AdminTenantDto(tenant.Id, tenant.Name, tenant.CreatedAt, 0);
+        return new AdminTenantDto(tenant.Id, tenant.Name, tenant.CreatedAt, 0, null, null);
     }
 
-    public async Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, CancellationToken ct)
+    public async Task<AdminTenantDto?> UpdateTenantAsync(Guid tenantId, string name, string? notificationEmail, CancellationToken ct)
     {
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null)
             return null;
 
         tenant.Name = name.Trim();
+        tenant.NotificationEmail = string.IsNullOrWhiteSpace(notificationEmail) ? null : notificationEmail.Trim();
         await db.SaveChangesAsync(ct);
 
         var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
-        return new AdminTenantDto(tenant.Id, tenant.Name, tenant.CreatedAt, userCount);
+        return await ToDtoAsync(tenant, userCount, ct);
+    }
+
+    public async Task<AdminTenantDto?> SetTenantLogoAsync(Guid tenantId, Guid fileId, CancellationToken ct)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null || file.TenantId != tenantId)
+            throw new InvalidOperationException("El archivo no existe o no pertenece a este tenant.");
+
+        tenant.LogoFileId = fileId;
+        await db.SaveChangesAsync(ct);
+
+        var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
+        return await ToDtoAsync(tenant, userCount, ct);
     }
 
     public async Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct)
