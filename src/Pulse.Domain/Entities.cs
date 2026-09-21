@@ -50,6 +50,10 @@ public sealed class Product
     public decimal PrecioCosto { get; set; }
     public decimal? PrecioMinimo { get; set; }
     public int Stock { get; set; }
+
+    /// <summary>Referencia a <see cref="StoredFile"/> — el archivo se sube antes por separado (POST /v1/files).</summary>
+    public Guid? ImagenFileId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }

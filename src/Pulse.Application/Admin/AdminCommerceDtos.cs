@@ -7,6 +7,12 @@ public sealed class AdjustProductoStockRequest
     public int Stock { get; set; }
 }
 
+public sealed class SetProductoImagenRequest
+{
+    /// <summary>Id devuelto por POST /v1/files — subí el archivo primero, después asociálo acá.</summary>
+    public Guid FileId { get; set; }
+}
+
 public sealed class AdjustClienteSaldoRequest
 {
     public decimal DeudaInicial { get; set; }

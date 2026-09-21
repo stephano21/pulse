@@ -272,17 +272,8 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return true;
     }
 
-    public async Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct)
+    private async Task<ProductoDto> ToProductoDtoAsync(Product producto, Guid tenantId, CancellationToken ct)
     {
-        var producto = await db.Products
-            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productoId && p.DeletedAt == null, ct);
-        if (producto is null)
-            return null;
-
-        producto.Stock = stock;
-        producto.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
-
         var localId = await db.ProductLocalMappings.AsNoTracking()
             .Where(m => m.TenantId == tenantId && m.ProductId == producto.Id)
             .Select(m => (long?)m.LocalId)
@@ -297,8 +288,62 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
             PrecioCosto = producto.PrecioCosto,
             PrecioMinimo = producto.PrecioMinimo,
             Stock = producto.Stock,
+            ImagenFileId = producto.ImagenFileId,
+            ImagenUrl = await ResolveLogoUrlAsync(producto.ImagenFileId, ct),
             UpdatedAt = producto.UpdatedAt
         };
+    }
+
+    public async Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct)
+    {
+        var producto = await db.Products
+            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productoId && p.DeletedAt == null, ct);
+        if (producto is null)
+            return null;
+
+        producto.Stock = stock;
+        producto.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return await ToProductoDtoAsync(producto, tenantId, ct);
+    }
+
+    public async Task<ProductoDto?> SetProductoImagenAsync(Guid tenantId, Guid productoId, Guid fileId, CancellationToken ct)
+    {
+        var producto = await db.Products
+            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productoId && p.DeletedAt == null, ct);
+        if (producto is null)
+            return null;
+
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null || file.TenantId != tenantId)
+            throw new InvalidOperationException("El archivo no existe o no pertenece a este tenant.");
+
+        producto.ImagenFileId = fileId;
+        producto.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return await ToProductoDtoAsync(producto, tenantId, ct);
+    }
+
+    public async Task<ProductoDto?> SetProductoImagenAdminAsync(Guid tenantId, Guid productoId, Guid fileId, CancellationToken ct)
+    {
+        var producto = await db.Products
+            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == productoId && p.DeletedAt == null, ct);
+        if (producto is null)
+            return null;
+
+        // A diferencia de SetProductoImagenAsync (usado por /v1/productos, un miembro del propio tenant),
+        // acá no exigimos que el archivo pertenezca al tenant: lo sube el SuperAdmin desde su propia sesión.
+        var fileExists = await db.Files.AnyAsync(f => f.Id == fileId, ct);
+        if (!fileExists)
+            throw new InvalidOperationException("El archivo no existe.");
+
+        producto.ImagenFileId = fileId;
+        producto.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return await ToProductoDtoAsync(producto, tenantId, ct);
     }
 
     public async Task<ClienteDto?> AdjustClienteSaldoAsync(Guid tenantId, Guid clienteId, decimal deudaInicial, decimal saldoAFavor, CancellationToken ct)

@@ -627,6 +627,12 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                 .ToDictionaryAsync(m => m.ProductId, m => m.LocalId, ct);
         }
 
+        // Las fotos viven en un bucket privado: se firma una URL temporal por cada producto con imagen.
+        var imagenFileIds = rows.Where(r => r.ImagenFileId.HasValue).Select(r => r.ImagenFileId!.Value).Distinct().ToList();
+        var keysByFileId = imagenFileIds.Count > 0 && storage.IsConfigured
+            ? await db.Files.AsNoTracking().Where(f => imagenFileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Key, ct)
+            : new Dictionary<Guid, string>();
+
         var items = rows.Select(p => new ProductoDto
         {
             Id = p.Id,
@@ -636,6 +642,10 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
             PrecioCosto = p.PrecioCosto,
             PrecioMinimo = p.PrecioMinimo,
             Stock = p.Stock,
+            ImagenFileId = p.ImagenFileId,
+            ImagenUrl = p.ImagenFileId.HasValue && keysByFileId.TryGetValue(p.ImagenFileId.Value, out var imgKey)
+                ? storage.GetPresignedUrl(imgKey)
+                : null,
             UpdatedAt = p.UpdatedAt
         }).ToList();
 

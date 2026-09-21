@@ -62,6 +62,15 @@ public interface IAdminService
     /// <summary>Corrige manualmente el stock de un producto. Devuelve null si el producto no existe en el tenant.</summary>
     Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct);
 
+    /// <summary>
+    /// Asocia un archivo ya subido (POST /v1/files) como imagen del producto. Devuelve null si el
+    /// producto no existe; lanza InvalidOperationException si el archivo no existe o es de otro tenant.
+    /// </summary>
+    Task<ProductoDto?> SetProductoImagenAsync(Guid tenantId, Guid productoId, Guid fileId, CancellationToken ct);
+
+    /// <summary>Como SetProductoImagenAsync, pero sin exigir que el archivo pertenezca al tenant (lo usa /v1/admin, el SuperAdmin gestiona cualquier tenant).</summary>
+    Task<ProductoDto?> SetProductoImagenAdminAsync(Guid tenantId, Guid productoId, Guid fileId, CancellationToken ct);
+
     /// <summary>Corrige manualmente deuda_inicial/saldo_a_favor de un cliente. Devuelve null si no existe en el tenant.</summary>
     Task<ClienteDto?> AdjustClienteSaldoAsync(Guid tenantId, Guid clienteId, decimal deudaInicial, decimal saldoAFavor, CancellationToken ct);
 

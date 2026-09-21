@@ -137,6 +137,13 @@ public sealed class AdminTenantDataController(ISyncService sync, IAdminService a
         return producto is null ? NotFound() : Ok(producto);
     }
 
+    [HttpPut("productos/{productoId:guid}/imagen")]
+    public async Task<IActionResult> SetProductoImagen(Guid tenantId, Guid productoId, [FromBody] SetProductoImagenRequest body, CancellationToken ct)
+    {
+        var producto = await admin.SetProductoImagenAdminAsync(tenantId, productoId, body.FileId, ct);
+        return producto is null ? NotFound() : Ok(producto);
+    }
+
     [HttpPut("clientes/{clienteId:guid}/saldo")]
     public async Task<IActionResult> AjustarSaldo(Guid tenantId, Guid clienteId, [FromBody] AdjustClienteSaldoRequest body, CancellationToken ct)
     {

@@ -105,6 +105,9 @@ public sealed class ProductoDto
     public decimal PrecioCosto { get; set; }
     public decimal? PrecioMinimo { get; set; }
     public int Stock { get; set; }
+    public Guid? ImagenFileId { get; set; }
+    /// <summary>URL firmada temporal (bucket privado) — null si el producto no tiene imagen o el storage no está configurado.</summary>
+    public string? ImagenUrl { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
