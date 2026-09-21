@@ -61,6 +61,9 @@ services:
       Storage__AccessKey: ${STORAGE_ACCESS_KEY:-}
       Storage__SecretKey: ${STORAGE_SECRET_KEY:-}
       Storage__BucketName: ${STORAGE_BUCKET:-}
+      # "auto" sirve para R2; AWS S3 real exige la región exacta del bucket (ej. us-east-1) o falla
+      # la firma de las URLs presigned.
+      Storage__Region: ${STORAGE_REGION:-auto}
       # admin.pulse.stynger.online / yapa-admin.stynger.online: panel admin desplegado.
       # localhost:5173: panel admin corrido en local (npm run dev) apuntando a esta API remota.
       Cors__AllowedOrigins__0: "https://admin.pulse.stynger.online"
