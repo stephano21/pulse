@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -61,11 +61,12 @@ public sealed class FilesController(IFileStorageService storage, IFileRegistry r
         return g;
     }
 
+    // Confirmado en producción: el pipeline de JwtBearer remapea "sub" a ClaimTypes.NameIdentifier.
     private Guid UserId()
     {
-        var v = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var v = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (v == null || !Guid.TryParse(v, out var g))
-            throw new InvalidOperationException("Falta claim sub.");
+            throw new InvalidOperationException("Falta claim de usuario.");
         return g;
     }
 }

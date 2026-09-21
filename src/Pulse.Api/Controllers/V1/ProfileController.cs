@@ -1,4 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -72,14 +71,9 @@ public sealed class ProfileController(
     }
 
     /// <summary>
-    /// UserManager.GetUserAsync busca ClaimTypes.NameIdentifier, pero TokenService solo emite el
-    /// claim estándar "sub" (JsonWebTokenHandler, el handler por defecto desde .NET 8, no remapea
-    /// claims automáticamente salvo que se configure MapInboundClaims — acá no está configurado).
-    /// Por eso resolvemos el id a mano, igual que ya se hace con tenant_id en el resto de la API.
+    /// Confirmado en producción (no en teoría): el pipeline de JwtBearer de este runtime SÍ remapea
+    /// el claim "sub" del token a ClaimTypes.NameIdentifier, así que GetUserAsync (que busca
+    /// justamente ese claim) funciona directo — no hace falta resolver "sub" a mano.
     /// </summary>
-    private Task<ApplicationUser?> CurrentUserAsync()
-    {
-        var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        return sub is null ? Task.FromResult<ApplicationUser?>(null) : userManager.FindByIdAsync(sub);
-    }
+    private Task<ApplicationUser?> CurrentUserAsync() => userManager.GetUserAsync(User);
 }

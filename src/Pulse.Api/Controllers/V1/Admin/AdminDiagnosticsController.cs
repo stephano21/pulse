@@ -1,4 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -31,29 +30,17 @@ public sealed class AdminDiagnosticsController(
     public async Task<IActionResult> SendTestEmail([FromBody] SendTestEmailRequest body, CancellationToken ct)
     {
         var to = body.To?.Trim();
-        string? debugSub = null;
-        string? debugUserFound = null;
         if (string.IsNullOrWhiteSpace(to))
         {
             // No confiamos solo en el claim "email" del JWT (puede faltar en tokens viejos u otros
-            // casos raros de emisión) — resolvemos el correo real desde la base por el claim "sub".
-            debugSub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-            var caller = debugSub is null ? null : await userManager.FindByIdAsync(debugSub);
-            debugUserFound = caller is null ? "no encontrado" : $"encontrado, Email={caller.Email ?? "(null)"}";
+            // casos raros de emisión) — resolvemos el correo real desde la base. Confirmado en
+            // producción: GetUserAsync funciona (el pipeline remapea "sub" a ClaimTypes.NameIdentifier).
+            var caller = await userManager.GetUserAsync(User);
             to = caller?.Email;
         }
 
         if (string.IsNullOrWhiteSpace(to))
-        {
-            // TEMPORAL: mientras diagnosticamos por qué esto falla en producción, devolvemos los
-            // claims tal como los ve el servidor (endpoint SuperAdmin-only, son los claims de su
-            // propia sesión — nada sensible que no sepa ya).
-            var claimsDump = string.Join(" | ", User.Claims.Select(c => $"{c.Type}={c.Value}"));
-            return Problem(
-                title: "Falta destinatario",
-                detail: $"sub={debugSub ?? "(null)"}; usuario={debugUserFound ?? "(no se buscó)"}; claims=[{claimsDump}]",
-                statusCode: StatusCodes.Status400BadRequest);
-        }
+            return Problem(title: "Falta destinatario", statusCode: StatusCodes.Status400BadRequest);
 
         string? replyTo = null;
         string? fromName = null;
