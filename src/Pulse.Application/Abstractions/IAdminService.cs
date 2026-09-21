@@ -19,6 +19,13 @@ public interface IAdminService
     /// <summary>Como SetTenantLogoAsync, pero sin exigir que el archivo pertenezca al tenant (lo usa /v1/admin, el SuperAdmin gestiona cualquier tenant).</summary>
     Task<AdminTenantDto?> SetTenantLogoAdminAsync(Guid tenantId, Guid fileId, CancellationToken ct);
 
+    /// <summary>
+    /// Borra un tenant SOLO si no tiene usuarios (pensado para limpiar huérfanos de registros que
+    /// fallaron a mitad de camino, no para negocios reales con datos). Null = no existe;
+    /// false = existe pero tiene usuarios, no se borró; true = borrado.
+    /// </summary>
+    Task<bool?> DeleteTenantAsync(Guid tenantId, CancellationToken ct);
+
     Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct);
 
     /// <summary>

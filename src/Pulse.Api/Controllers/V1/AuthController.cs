@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Pulse.Api.Auth;
 using Pulse.Application.Abstractions;
 using Pulse.Application.Email;
+using Pulse.Infrastructure.Data;
 using Pulse.Infrastructure.Identity;
 
 namespace Pulse.Api.Controllers.V1;
@@ -23,6 +24,9 @@ public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     IEmailSender emailSender,
     IAdminService admin,
+    // Solo para envolver "crear tenant + su primer usuario" en una transacción — ver Register/Google:
+    // si el alta del usuario falla, el tenant no debe quedar huérfano.
+    PulseDbContext db,
     IOptions<AppOptions> appOptions,
     IOptions<GoogleAuthOptions> googleOptions,
     IOptions<JwtOptions> jwtOptions) : ControllerBase
@@ -85,6 +89,9 @@ public sealed class AuthController(
 
         var email = body.Email.Trim();
         var now = DateTimeOffset.UtcNow;
+
+        // Atómico: si el alta del usuario falla, el tenant recién creado no debe quedar huérfano.
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var tenant = await admin.CreateTenantAsync(body.TenantName, cancellationToken);
         var user = new ApplicationUser
         {
@@ -98,10 +105,14 @@ public sealed class AuthController(
 
         var result = await userManager.CreateAsync(user, body.Password);
         if (!result.Succeeded)
+        {
+            await tx.RollbackAsync(cancellationToken);
             return Problem(
                 title: "No se pudo registrar",
                 detail: string.Join(" ", result.Errors.Select(e => e.Description)),
                 statusCode: StatusCodes.Status400BadRequest);
+        }
+        await tx.CommitAsync(cancellationToken);
 
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
         var tokenEncoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
@@ -277,6 +288,11 @@ public sealed class AuthController(
                 // perfil (o el usuario del correo como respaldo) como punto de partida; el
                 // SuperAdmin puede renombrar el tenant después desde el admin panel.
                 var tenantName = !string.IsNullOrWhiteSpace(payload.Name) ? payload.Name! : email.Split('@')[0];
+
+                // Atómico: tenant + usuario + vínculo de login se crean juntos o no se crea nada —
+                // antes, si CreateAsync o AddLoginAsync fallaban después de crear el tenant, quedaba
+                // un tenant huérfano sin ningún usuario (y el cliente podía reintentar sin límite).
+                await using var tx = await db.Database.BeginTransactionAsync(HttpContext.RequestAborted);
                 var tenant = await admin.CreateTenantAsync(tenantName, HttpContext.RequestAborted);
                 user = new ApplicationUser
                 {
@@ -294,18 +310,37 @@ public sealed class AuthController(
                 var randomPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) + "Aa1!";
                 var create = await userManager.CreateAsync(user, randomPassword);
                 if (!create.Succeeded)
+                {
+                    await tx.RollbackAsync(HttpContext.RequestAborted);
                     return Problem(
                         title: "No se pudo crear la cuenta",
                         detail: string.Join(" ", create.Errors.Select(e => e.Description)),
                         statusCode: StatusCodes.Status400BadRequest);
-            }
+                }
 
-            var addLogin = await userManager.AddLoginAsync(user, loginInfo);
-            if (!addLogin.Succeeded)
-                return Problem(
-                    title: "No se pudo vincular Google",
-                    detail: string.Join(" ", addLogin.Errors.Select(e => e.Description)),
-                    statusCode: StatusCodes.Status400BadRequest);
+                var newLogin = await userManager.AddLoginAsync(user, loginInfo);
+                if (!newLogin.Succeeded)
+                {
+                    await tx.RollbackAsync(HttpContext.RequestAborted);
+                    return Problem(
+                        title: "No se pudo vincular Google",
+                        detail: string.Join(" ", newLogin.Errors.Select(e => e.Description)),
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
+
+                await tx.CommitAsync(HttpContext.RequestAborted);
+            }
+            else
+            {
+                // Usuario existente (encontrado por correo) que todavía no tenía Google vinculado —
+                // no crea tenant, no necesita transacción.
+                var addLogin = await userManager.AddLoginAsync(user, loginInfo);
+                if (!addLogin.Succeeded)
+                    return Problem(
+                        title: "No se pudo vincular Google",
+                        detail: string.Join(" ", addLogin.Errors.Select(e => e.Description)),
+                        statusCode: StatusCodes.Status400BadRequest);
+            }
         }
 
         if (await userManager.IsLockedOutAsync(user))

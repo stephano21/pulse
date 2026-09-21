@@ -69,4 +69,16 @@ public sealed class AdminTenantsController(IAdminService admin) : ControllerBase
         var tenant = await admin.SetTenantLogoAdminAsync(tenantId, body.FileId, ct);
         return tenant is null ? NotFound() : Ok(tenant);
     }
+
+    [HttpDelete("{tenantId:guid}")]
+    public async Task<IActionResult> Delete(Guid tenantId, CancellationToken ct)
+    {
+        var result = await admin.DeleteTenantAsync(tenantId, ct);
+        return result switch
+        {
+            null => NotFound(),
+            false => Problem(title: "No se puede borrar", detail: "El tenant tiene usuarios.", statusCode: StatusCodes.Status409Conflict),
+            true => NoContent()
+        };
+    }
 }

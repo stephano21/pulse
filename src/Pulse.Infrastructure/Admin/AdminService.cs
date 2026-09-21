@@ -113,6 +113,21 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return await ToDtoAsync(tenant, userCount, ct);
     }
 
+    public async Task<bool?> DeleteTenantAsync(Guid tenantId, CancellationToken ct)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        if (tenant is null)
+            return null;
+
+        var userCount = await db.Users.CountAsync(u => u.TenantId == tenant.Id, ct);
+        if (userCount > 0)
+            return false; // nunca borramos un tenant con usuarios/datos — usalo para limpiar huérfanos, no negocios reales
+
+        db.Tenants.Remove(tenant);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<IReadOnlyList<AdminUserDto>> ListUsersAsync(Guid? tenantId, CancellationToken ct)
     {
         var users = await (
