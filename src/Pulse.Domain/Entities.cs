@@ -148,6 +148,90 @@ public sealed class CobroLocalMapping
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>
+/// Proveedor del negocio. Su saldo (lo que se le debe) = DeudaInicial + compras a crédito − pagos.
+/// </summary>
+public sealed class Proveedor
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Tenant? Tenant { get; set; }
+    public string Nombre { get; set; } = "";
+    public string? Telefono { get; set; }
+    public string? Notas { get; set; }
+
+    /// <summary>Lo que ya se le debía al proveedor antes de empezar a usar la app.</summary>
+    public decimal DeudaInicial { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+}
+
+public sealed class ProveedorLocalMapping
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public long LocalId { get; set; }
+    public Guid ProveedorId { get; set; }
+    public Proveedor? Proveedor { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Compra a crédito al proveedor: aumenta lo que se le debe, no mueve caja hasta que se pague.</summary>
+public sealed class CompraProveedor
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Tenant? Tenant { get; set; }
+    public Guid ProveedorId { get; set; }
+    public Proveedor? Proveedor { get; set; }
+    public decimal Monto { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class CompraProveedorLocalMapping
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public long LocalId { get; set; }
+    public Guid CompraId { get; set; }
+    public CompraProveedor? Compra { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>
+/// Pago hecho a un proveedor (sale plata). Es el que se resta del total vendido del día para
+/// obtener el neto. Si fue por transferencia puede llevar la foto del comprobante
+/// (<see cref="ComprobanteFileId"/> apunta a <see cref="StoredFile"/>, subido antes por POST /v1/files).
+/// </summary>
+public sealed class PagoProveedor
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Tenant? Tenant { get; set; }
+    public Guid ProveedorId { get; set; }
+    public Proveedor? Proveedor { get; set; }
+    public decimal Monto { get; set; }
+    public MetodoPago MetodoPago { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+    public Guid? ComprobanteFileId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class PagoProveedorLocalMapping
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public long LocalId { get; set; }
+    public Guid PagoId { get; set; }
+    public PagoProveedor? Pago { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class IdempotencyRecord
 {
     public Guid Id { get; set; }

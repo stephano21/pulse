@@ -329,6 +329,120 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         };
     }
 
+    public async Task<ProveedorDto> CreateProveedorAsync(Guid tenantId, AdminCreateProveedorRequest request, CancellationToken ct)
+    {
+        var nombre = request.Nombre.Trim();
+        if (nombre.Length == 0)
+            throw new InvalidOperationException("El nombre del proveedor es obligatorio.");
+        if (request.DeudaInicial < 0)
+            throw new InvalidOperationException("La deuda inicial no puede ser negativa.");
+
+        var now = DateTimeOffset.UtcNow;
+        var proveedor = new Proveedor
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Nombre = nombre,
+            Telefono = string.IsNullOrWhiteSpace(request.Telefono) ? null : request.Telefono.Trim(),
+            Notas = string.IsNullOrWhiteSpace(request.Notas) ? null : request.Notas.Trim(),
+            DeudaInicial = request.DeudaInicial,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.Proveedores.Add(proveedor);
+        await db.SaveChangesAsync(ct);
+
+        return new ProveedorDto
+        {
+            Id = proveedor.Id,
+            LocalId = null,
+            Nombre = proveedor.Nombre,
+            Telefono = proveedor.Telefono,
+            Notas = proveedor.Notas,
+            DeudaInicial = proveedor.DeudaInicial,
+            UpdatedAt = proveedor.UpdatedAt
+        };
+    }
+
+    public async Task<CompraProveedorDto> CreateCompraProveedorAsync(Guid tenantId, AdminCreateCompraProveedorRequest request, CancellationToken ct)
+    {
+        if (request.Monto <= 0)
+            throw new InvalidOperationException("El monto de la compra debe ser mayor a cero.");
+        await EnsureProveedorAsync(tenantId, request.ProveedorId, ct);
+
+        var compra = new CompraProveedor
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ProveedorId = request.ProveedorId,
+            Monto = request.Monto,
+            Fecha = request.Fecha ?? DateTimeOffset.UtcNow,
+            Nota = string.IsNullOrWhiteSpace(request.Nota) ? null : request.Nota.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ComprasProveedor.Add(compra);
+        await db.SaveChangesAsync(ct);
+
+        return new CompraProveedorDto
+        {
+            Id = compra.Id,
+            LocalId = null,
+            ProveedorId = compra.ProveedorId,
+            Monto = compra.Monto,
+            Fecha = compra.Fecha,
+            Nota = compra.Nota,
+            CreatedAt = compra.CreatedAt
+        };
+    }
+
+    public async Task<PagoProveedorDto> CreatePagoProveedorAsync(Guid tenantId, AdminCreatePagoProveedorRequest request, CancellationToken ct)
+    {
+        if (request.Monto <= 0)
+            throw new InvalidOperationException("El monto del pago debe ser mayor a cero.");
+        await EnsureProveedorAsync(tenantId, request.ProveedorId, ct);
+
+        // Igual que SetTenantLogoAdminAsync: el comprobante lo sube el SuperAdmin desde su propia sesión
+        // (otro tenant_id en el JWT), así que solo exigimos que el archivo exista.
+        if (request.ComprobanteFileId.HasValue && !await db.Files.AnyAsync(f => f.Id == request.ComprobanteFileId.Value, ct))
+            throw new InvalidOperationException("El comprobante no existe.");
+
+        var pago = new PagoProveedor
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ProveedorId = request.ProveedorId,
+            Monto = request.Monto,
+            MetodoPago = request.MetodoPago,
+            Fecha = request.Fecha ?? DateTimeOffset.UtcNow,
+            Nota = string.IsNullOrWhiteSpace(request.Nota) ? null : request.Nota.Trim(),
+            ComprobanteFileId = request.ComprobanteFileId,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.PagosProveedor.Add(pago);
+        await db.SaveChangesAsync(ct);
+
+        return new PagoProveedorDto
+        {
+            Id = pago.Id,
+            LocalId = null,
+            ProveedorId = pago.ProveedorId,
+            Monto = pago.Monto,
+            MetodoPago = pago.MetodoPago,
+            Fecha = pago.Fecha,
+            Nota = pago.Nota,
+            ComprobanteFileId = pago.ComprobanteFileId,
+            ComprobanteUrl = await ResolveLogoUrlAsync(pago.ComprobanteFileId, ct),
+            CreatedAt = pago.CreatedAt
+        };
+    }
+
+    private async Task EnsureProveedorAsync(Guid tenantId, Guid proveedorId, CancellationToken ct)
+    {
+        var existe = await db.Proveedores.AnyAsync(p => p.TenantId == tenantId && p.Id == proveedorId && p.DeletedAt == null, ct);
+        if (!existe)
+            throw new InvalidOperationException("El proveedor no existe en el tenant.");
+    }
+
     public async Task<VentaDto> CreateVentaAsync(Guid tenantId, AdminCreateVentaRequest request, CancellationToken ct)
     {
         if (request.Lineas.Count == 0)

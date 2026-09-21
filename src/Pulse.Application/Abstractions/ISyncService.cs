@@ -9,9 +9,15 @@ public interface ISyncService
     Task<SyncBatchResponse> PushVentasAsync(Guid tenantId, VentasSyncRequest request, CancellationToken ct);
     Task<SyncBatchResponse> PushCobrosAsync(Guid tenantId, CobrosSyncRequest request, CancellationToken ct);
     Task<SyncBatchResponse> PushUnidadesAsync(Guid tenantId, UnidadesSyncRequest request, CancellationToken ct);
+    Task<SyncBatchResponse> PushProveedoresAsync(Guid tenantId, ProveedoresSyncRequest request, CancellationToken ct);
+    Task<SyncBatchResponse> PushComprasProveedorAsync(Guid tenantId, ComprasProveedorSyncRequest request, CancellationToken ct);
+    Task<SyncBatchResponse> PushPagosProveedorAsync(Guid tenantId, PagosProveedorSyncRequest request, CancellationToken ct);
     Task<PagedProductosResponse> PullProductosAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
     Task<PagedClientesResponse> PullClientesAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
     Task<PagedVentasResponse> PullVentasAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
     Task<PagedCobrosResponse> PullCobrosAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
     Task<PagedUnidadesResponse> PullUnidadesAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
+    Task<PagedProveedoresResponse> PullProveedoresAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct);
+    Task<PagedComprasProveedorResponse> PullComprasProveedorAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
+    Task<PagedPagosProveedorResponse> PullPagosProveedorAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct);
 }

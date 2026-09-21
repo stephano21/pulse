@@ -73,6 +73,63 @@ public sealed class AdminTenantDataController(ISyncService sync, IAdminService a
         return Ok(result);
     }
 
+    [HttpGet("proveedores")]
+    public async Task<IActionResult> Proveedores(
+        Guid tenantId,
+        [FromQuery(Name = "updated_since")] DateTimeOffset? updatedSince,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 100,
+        CancellationToken ct = default)
+    {
+        var result = await sync.PullProveedoresAsync(tenantId, updatedSince, cursor, limit, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("compras-proveedor")]
+    public async Task<IActionResult> ComprasProveedor(
+        Guid tenantId,
+        [FromQuery(Name = "created_since")] DateTimeOffset? createdSince,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 100,
+        CancellationToken ct = default)
+    {
+        var result = await sync.PullComprasProveedorAsync(tenantId, createdSince, cursor, limit, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("pagos-proveedor")]
+    public async Task<IActionResult> PagosProveedor(
+        Guid tenantId,
+        [FromQuery(Name = "created_since")] DateTimeOffset? createdSince,
+        [FromQuery] string? cursor,
+        [FromQuery] int limit = 100,
+        CancellationToken ct = default)
+    {
+        var result = await sync.PullPagosProveedorAsync(tenantId, createdSince, cursor, limit, ct);
+        return Ok(result);
+    }
+
+    [HttpPost("proveedores")]
+    public async Task<IActionResult> CrearProveedor(Guid tenantId, [FromBody] AdminCreateProveedorRequest body, CancellationToken ct)
+    {
+        var proveedor = await admin.CreateProveedorAsync(tenantId, body, ct);
+        return Ok(proveedor);
+    }
+
+    [HttpPost("compras-proveedor")]
+    public async Task<IActionResult> CrearCompraProveedor(Guid tenantId, [FromBody] AdminCreateCompraProveedorRequest body, CancellationToken ct)
+    {
+        var compra = await admin.CreateCompraProveedorAsync(tenantId, body, ct);
+        return Ok(compra);
+    }
+
+    [HttpPost("pagos-proveedor")]
+    public async Task<IActionResult> CrearPagoProveedor(Guid tenantId, [FromBody] AdminCreatePagoProveedorRequest body, CancellationToken ct)
+    {
+        var pago = await admin.CreatePagoProveedorAsync(tenantId, body, ct);
+        return Ok(pago);
+    }
+
     [HttpPut("productos/{productoId:guid}/stock")]
     public async Task<IActionResult> AjustarStock(Guid tenantId, Guid productoId, [FromBody] AdjustProductoStockRequest body, CancellationToken ct)
     {

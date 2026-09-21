@@ -19,6 +19,12 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
     public DbSet<VentaLocalMapping> VentaLocalMappings => Set<VentaLocalMapping>();
     public DbSet<Cobro> Cobros => Set<Cobro>();
     public DbSet<CobroLocalMapping> CobroLocalMappings => Set<CobroLocalMapping>();
+    public DbSet<Proveedor> Proveedores => Set<Proveedor>();
+    public DbSet<ProveedorLocalMapping> ProveedorLocalMappings => Set<ProveedorLocalMapping>();
+    public DbSet<CompraProveedor> ComprasProveedor => Set<CompraProveedor>();
+    public DbSet<CompraProveedorLocalMapping> CompraProveedorLocalMappings => Set<CompraProveedorLocalMapping>();
+    public DbSet<PagoProveedor> PagosProveedor => Set<PagoProveedor>();
+    public DbSet<PagoProveedorLocalMapping> PagoProveedorLocalMappings => Set<PagoProveedorLocalMapping>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<ProcessedMutation> ProcessedMutations => Set<ProcessedMutation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -151,6 +157,66 @@ public sealed class PulseDbContext(DbContextOptions<PulseDbContext> options)
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.TenantId, x.LocalId }).IsUnique();
             e.HasOne(x => x.Cobro).WithMany().HasForeignKey(x => x.CobroId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Proveedor>(e =>
+        {
+            e.ToTable("proveedores", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Nombre).HasMaxLength(512);
+            e.Property(x => x.Telefono).HasMaxLength(64);
+            e.Property(x => x.Notas).HasMaxLength(2000);
+            e.Property(x => x.DeudaInicial).HasPrecision(18, 4);
+            e.HasIndex(x => new { x.TenantId, x.UpdatedAt });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProveedorLocalMapping>(e =>
+        {
+            e.ToTable("proveedor_local_mappings", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.LocalId }).IsUnique();
+            e.HasOne(x => x.Proveedor).WithMany().HasForeignKey(x => x.ProveedorId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CompraProveedor>(e =>
+        {
+            e.ToTable("compras_proveedor", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Monto).HasPrecision(18, 4);
+            e.Property(x => x.Nota).HasMaxLength(1000);
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Proveedor).WithMany().HasForeignKey(x => x.ProveedorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CompraProveedorLocalMapping>(e =>
+        {
+            e.ToTable("compra_proveedor_local_mappings", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.LocalId }).IsUnique();
+            e.HasOne(x => x.Compra).WithMany().HasForeignKey(x => x.CompraId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PagoProveedor>(e =>
+        {
+            e.ToTable("pagos_proveedor", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Monto).HasPrecision(18, 4);
+            e.Property(x => x.MetodoPago).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Nota).HasMaxLength(1000);
+            e.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            e.HasIndex(x => new { x.TenantId, x.Fecha });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Proveedor).WithMany().HasForeignKey(x => x.ProveedorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PagoProveedorLocalMapping>(e =>
+        {
+            e.ToTable("pago_proveedor_local_mappings", DatabaseSchemas.Pulse);
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.LocalId }).IsUnique();
+            e.HasOne(x => x.Pago).WithMany().HasForeignKey(x => x.PagoId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<IdempotencyRecord>(e =>

@@ -70,4 +70,13 @@ public interface IAdminService
     /// línea con producto asociado, igual que haría el propio negocio desde la app.
     /// </summary>
     Task<VentaDto> CreateVentaAsync(Guid tenantId, AdminCreateVentaRequest request, CancellationToken ct);
+
+    /// <summary>Da de alta un proveedor a nombre del tenant (soporte). Lanza InvalidOperationException si el nombre está vacío.</summary>
+    Task<ProveedorDto> CreateProveedorAsync(Guid tenantId, AdminCreateProveedorRequest request, CancellationToken ct);
+
+    /// <summary>Registra una compra a crédito al proveedor (aumenta lo que se le debe).</summary>
+    Task<CompraProveedorDto> CreateCompraProveedorAsync(Guid tenantId, AdminCreateCompraProveedorRequest request, CancellationToken ct);
+
+    /// <summary>Registra un pago al proveedor (resta del neto del día), con foto de comprobante opcional.</summary>
+    Task<PagoProveedorDto> CreatePagoProveedorAsync(Guid tenantId, AdminCreatePagoProveedorRequest request, CancellationToken ct);
 }

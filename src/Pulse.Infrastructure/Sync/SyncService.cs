@@ -6,13 +6,16 @@ using Pulse.Infrastructure.Data;
 
 namespace Pulse.Infrastructure.Sync;
 
-public sealed class SyncService(PulseDbContext db) : ISyncService
+public sealed class SyncService(PulseDbContext db, IFileStorageService storage) : ISyncService
 {
     private const string EntityProducto = "producto";
     private const string EntityCliente = "cliente";
     private const string EntityVenta = "venta";
     private const string EntityCobro = "cobro";
     private const string EntityUnidad = "unidad";
+    private const string EntityProveedor = "proveedor";
+    private const string EntityCompraProveedor = "compra_proveedor";
+    private const string EntityPagoProveedor = "pago_proveedor";
 
     public async Task<SyncBatchResponse> PushProductosAsync(Guid tenantId, ProductosSyncRequest request, CancellationToken ct)
     {
@@ -306,6 +309,207 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
             await db.SaveChangesAsync(ct);
             await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityCobro, item.LocalId, cobro.Id, "created", ct);
             results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = cobro.Id, Status = "created" });
+        }
+
+        return new SyncBatchResponse { Results = results };
+    }
+
+    public async Task<SyncBatchResponse> PushProveedoresAsync(Guid tenantId, ProveedoresSyncRequest request, CancellationToken ct)
+    {
+        var results = new List<SyncResultItem>();
+        foreach (var item in request.Items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.MutationId))
+            {
+                var dup = await FindMutationAsync(tenantId, item.MutationId, EntityProveedor, item.LocalId, ct);
+                if (dup != null)
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = dup.Value, Status = "duplicate" });
+                    continue;
+                }
+            }
+
+            var mapping = await db.ProveedorLocalMappings
+                .Include(m => m.Proveedor)
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+
+            if (item.Deleted)
+            {
+                if (mapping?.Proveedor != null)
+                {
+                    mapping.Proveedor.DeletedAt = DateTimeOffset.UtcNow;
+                    mapping.Proveedor.UpdatedAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                    await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityProveedor, item.LocalId, mapping.Proveedor.Id, "deleted", ct);
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = mapping.Proveedor.Id, Status = "deleted" });
+                }
+                else
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = Guid.Empty, Status = "deleted" });
+                }
+                continue;
+            }
+
+            if (mapping?.Proveedor != null)
+            {
+                var pr = mapping.Proveedor;
+                pr.Nombre = item.Nombre;
+                pr.Telefono = NullIfBlank(item.Telefono);
+                pr.Notas = NullIfBlank(item.Notas);
+                pr.DeudaInicial = item.DeudaInicial;
+                pr.UpdatedAt = ClockMax(pr.UpdatedAt, item.ClientUpdatedAt);
+                await db.SaveChangesAsync(ct);
+                await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityProveedor, item.LocalId, pr.Id, "updated", ct);
+                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = pr.Id, Status = "updated" });
+                continue;
+            }
+
+            var proveedor = new Proveedor
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                Nombre = item.Nombre,
+                Telefono = NullIfBlank(item.Telefono),
+                Notas = NullIfBlank(item.Notas),
+                DeudaInicial = item.DeudaInicial,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = item.ClientUpdatedAt
+            };
+            db.Proveedores.Add(proveedor);
+            db.ProveedorLocalMappings.Add(new ProveedorLocalMapping
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                LocalId = item.LocalId,
+                ProveedorId = proveedor.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityProveedor, item.LocalId, proveedor.Id, "created", ct);
+            results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = proveedor.Id, Status = "created" });
+        }
+
+        return new SyncBatchResponse { Results = results };
+    }
+
+    public async Task<SyncBatchResponse> PushComprasProveedorAsync(Guid tenantId, ComprasProveedorSyncRequest request, CancellationToken ct)
+    {
+        var results = new List<SyncResultItem>();
+        foreach (var item in request.Items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.MutationId))
+            {
+                var dup = await FindMutationAsync(tenantId, item.MutationId, EntityCompraProveedor, item.LocalId, ct);
+                if (dup != null)
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = dup.Value, Status = "duplicate" });
+                    continue;
+                }
+            }
+
+            var existingMap = await db.CompraProveedorLocalMappings
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+            if (existingMap != null)
+            {
+                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = existingMap.CompraId, Status = "duplicate" });
+                continue;
+            }
+
+            if (item.Monto <= 0)
+                throw new InvalidOperationException($"El monto de la compra debe ser mayor a cero (local_id={item.LocalId}).");
+
+            var proveedorExists = await db.Proveedores.AnyAsync(p => p.TenantId == tenantId && p.Id == item.ProveedorId, ct);
+            if (!proveedorExists)
+                throw new InvalidOperationException($"Proveedor {item.ProveedorId} no existe en el tenant.");
+
+            var compra = new CompraProveedor
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                ProveedorId = item.ProveedorId,
+                Monto = item.Monto,
+                Fecha = item.Fecha,
+                Nota = NullIfBlank(item.Nota),
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            db.ComprasProveedor.Add(compra);
+            db.CompraProveedorLocalMappings.Add(new CompraProveedorLocalMapping
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                LocalId = item.LocalId,
+                CompraId = compra.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityCompraProveedor, item.LocalId, compra.Id, "created", ct);
+            results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = compra.Id, Status = "created" });
+        }
+
+        return new SyncBatchResponse { Results = results };
+    }
+
+    public async Task<SyncBatchResponse> PushPagosProveedorAsync(Guid tenantId, PagosProveedorSyncRequest request, CancellationToken ct)
+    {
+        var results = new List<SyncResultItem>();
+        foreach (var item in request.Items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.MutationId))
+            {
+                var dup = await FindMutationAsync(tenantId, item.MutationId, EntityPagoProveedor, item.LocalId, ct);
+                if (dup != null)
+                {
+                    results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = dup.Value, Status = "duplicate" });
+                    continue;
+                }
+            }
+
+            var existingMap = await db.PagoProveedorLocalMappings
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.LocalId == item.LocalId, ct);
+            if (existingMap != null)
+            {
+                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = existingMap.PagoId, Status = "duplicate" });
+                continue;
+            }
+
+            if (item.Monto <= 0)
+                throw new InvalidOperationException($"El monto del pago debe ser mayor a cero (local_id={item.LocalId}).");
+
+            var proveedorExists = await db.Proveedores.AnyAsync(p => p.TenantId == tenantId && p.Id == item.ProveedorId, ct);
+            if (!proveedorExists)
+                throw new InvalidOperationException($"Proveedor {item.ProveedorId} no existe en el tenant.");
+
+            if (item.ComprobanteFileId.HasValue)
+            {
+                var fileOk = await db.Files.AnyAsync(f => f.Id == item.ComprobanteFileId.Value && f.TenantId == tenantId, ct);
+                if (!fileOk)
+                    throw new InvalidOperationException("El comprobante no existe o no pertenece a este tenant.");
+            }
+
+            var pago = new PagoProveedor
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                ProveedorId = item.ProveedorId,
+                Monto = item.Monto,
+                MetodoPago = item.MetodoPago,
+                Fecha = item.Fecha,
+                Nota = NullIfBlank(item.Nota),
+                ComprobanteFileId = item.ComprobanteFileId,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            db.PagosProveedor.Add(pago);
+            db.PagoProveedorLocalMappings.Add(new PagoProveedorLocalMapping
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                LocalId = item.LocalId,
+                PagoId = pago.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityPagoProveedor, item.LocalId, pago.Id, "created", ct);
+            results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = pago.Id, Status = "created" });
         }
 
         return new SyncBatchResponse { Results = results };
@@ -653,6 +857,173 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
         return new PagedUnidadesResponse { Items = items, NextCursor = next };
     }
 
+    public async Task<PagedProveedoresResponse> PullProveedoresAsync(Guid tenantId, DateTimeOffset? updatedSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.Proveedores.AsNoTracking().Where(p => p.TenantId == tenantId && p.DeletedAt == null);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var u = cur.UpdatedAt;
+            var id = cur.Id;
+            q = q.Where(p => p.UpdatedAt > u || (p.UpdatedAt == u && p.Id > id));
+        }
+        else if (updatedSince.HasValue)
+        {
+            q = q.Where(p => p.UpdatedAt > updatedSince.Value);
+        }
+
+        var rows = await q
+            .OrderBy(p => p.UpdatedAt).ThenBy(p => p.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.UpdatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var ids = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (ids.Count > 0)
+        {
+            localIds = await db.ProveedorLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && ids.Contains(m.ProveedorId))
+                .ToDictionaryAsync(m => m.ProveedorId, m => m.LocalId, ct);
+        }
+
+        var items = rows.Select(p => new ProveedorDto
+        {
+            Id = p.Id,
+            LocalId = localIds.TryGetValue(p.Id, out var plid) ? plid : null,
+            Nombre = p.Nombre,
+            Telefono = p.Telefono,
+            Notas = p.Notas,
+            DeudaInicial = p.DeudaInicial,
+            UpdatedAt = p.UpdatedAt
+        }).ToList();
+
+        return new PagedProveedoresResponse { Items = items, NextCursor = next };
+    }
+
+    public async Task<PagedComprasProveedorResponse> PullComprasProveedorAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.ComprasProveedor.AsNoTracking().Where(c => c.TenantId == tenantId);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var ca = cur.UpdatedAt; // slot reused for CreatedAt
+            var id = cur.Id;
+            q = q.Where(c => c.CreatedAt > ca || (c.CreatedAt == ca && c.Id > id));
+        }
+        else if (createdSince.HasValue)
+        {
+            q = q.Where(c => c.CreatedAt > createdSince.Value);
+        }
+
+        var rows = await q
+            .OrderBy(c => c.CreatedAt).ThenBy(c => c.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.CreatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var ids = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (ids.Count > 0)
+        {
+            localIds = await db.CompraProveedorLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && ids.Contains(m.CompraId))
+                .ToDictionaryAsync(m => m.CompraId, m => m.LocalId, ct);
+        }
+
+        var items = rows.Select(c => new CompraProveedorDto
+        {
+            Id = c.Id,
+            LocalId = localIds.TryGetValue(c.Id, out var clid) ? clid : null,
+            ProveedorId = c.ProveedorId,
+            Monto = c.Monto,
+            Fecha = c.Fecha,
+            Nota = c.Nota,
+            CreatedAt = c.CreatedAt
+        }).ToList();
+
+        return new PagedComprasProveedorResponse { Items = items, NextCursor = next };
+    }
+
+    public async Task<PagedPagosProveedorResponse> PullPagosProveedorAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        var q = db.PagosProveedor.AsNoTracking().Where(p => p.TenantId == tenantId);
+
+        if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
+        {
+            var ca = cur.UpdatedAt; // slot reused for CreatedAt
+            var id = cur.Id;
+            q = q.Where(p => p.CreatedAt > ca || (p.CreatedAt == ca && p.Id > id));
+        }
+        else if (createdSince.HasValue)
+        {
+            q = q.Where(p => p.CreatedAt > createdSince.Value);
+        }
+
+        var rows = await q
+            .OrderBy(p => p.CreatedAt).ThenBy(p => p.Id)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            var last = rows[limit - 1];
+            next = CursorHelper.Encode(last.CreatedAt, last.Id);
+            rows = rows.Take(limit).ToList();
+        }
+
+        var ids = rows.Select(r => r.Id).ToList();
+        var localIds = new Dictionary<Guid, long>();
+        if (ids.Count > 0)
+        {
+            localIds = await db.PagoProveedorLocalMappings.AsNoTracking()
+                .Where(m => m.TenantId == tenantId && ids.Contains(m.PagoId))
+                .ToDictionaryAsync(m => m.PagoId, m => m.LocalId, ct);
+        }
+
+        // Las fotos viven en un bucket privado: se firma una URL temporal por cada comprobante.
+        var fileIds = rows.Where(r => r.ComprobanteFileId.HasValue).Select(r => r.ComprobanteFileId!.Value).Distinct().ToList();
+        var keysByFileId = fileIds.Count > 0 && storage.IsConfigured
+            ? await db.Files.AsNoTracking().Where(f => fileIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Key, ct)
+            : new Dictionary<Guid, string>();
+
+        var items = rows.Select(p => new PagoProveedorDto
+        {
+            Id = p.Id,
+            LocalId = localIds.TryGetValue(p.Id, out var plid) ? plid : null,
+            ProveedorId = p.ProveedorId,
+            Monto = p.Monto,
+            MetodoPago = p.MetodoPago,
+            Fecha = p.Fecha,
+            Nota = p.Nota,
+            ComprobanteFileId = p.ComprobanteFileId,
+            ComprobanteUrl = p.ComprobanteFileId.HasValue && keysByFileId.TryGetValue(p.ComprobanteFileId.Value, out var key)
+                ? storage.GetPresignedUrl(key)
+                : null,
+            CreatedAt = p.CreatedAt
+        }).ToList();
+
+        return new PagedPagosProveedorResponse { Items = items, NextCursor = next };
+    }
+
     private async Task<Guid?> FindMutationAsync(Guid tenantId, string mutationId, string entityType, long localId, CancellationToken ct)
     {
         var row = await db.ProcessedMutations.AsNoTracking()
@@ -714,6 +1085,8 @@ public sealed class SyncService(PulseDbContext db) : ISyncService
         }
         return null;
     }
+
+    private static string? NullIfBlank(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
 
     private static DateTimeOffset ClockMax(DateTimeOffset a, DateTimeOffset b) => a >= b ? a : b;
 }

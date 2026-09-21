@@ -52,6 +52,30 @@ public sealed class SyncController(ISyncService sync) : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("proveedores")]
+    public async Task<ActionResult<SyncBatchResponse>> PushProveedores([FromBody] ProveedoresSyncRequest body, CancellationToken ct)
+    {
+        var tid = TenantId();
+        var result = await sync.PushProveedoresAsync(tid, body, ct);
+        return Ok(result);
+    }
+
+    [HttpPost("compras-proveedor")]
+    public async Task<ActionResult<SyncBatchResponse>> PushComprasProveedor([FromBody] ComprasProveedorSyncRequest body, CancellationToken ct)
+    {
+        var tid = TenantId();
+        var result = await sync.PushComprasProveedorAsync(tid, body, ct);
+        return Ok(result);
+    }
+
+    [HttpPost("pagos-proveedor")]
+    public async Task<ActionResult<SyncBatchResponse>> PushPagosProveedor([FromBody] PagosProveedorSyncRequest body, CancellationToken ct)
+    {
+        var tid = TenantId();
+        var result = await sync.PushPagosProveedorAsync(tid, body, ct);
+        return Ok(result);
+    }
+
     private Guid TenantId()
     {
         var v = User.FindFirst("tenant_id")?.Value;

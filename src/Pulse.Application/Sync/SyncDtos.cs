@@ -209,3 +209,117 @@ public sealed class PagedUnidadesResponse
     public List<UnidadDto> Items { get; set; } = [];
     public string? NextCursor { get; set; }
 }
+
+public sealed class ProveedorSyncItem
+{
+    public long LocalId { get; set; }
+    public string? MutationId { get; set; }
+    public string Nombre { get; set; } = "";
+    public string? Telefono { get; set; }
+    public string? Notas { get; set; }
+    public decimal DeudaInicial { get; set; }
+    public DateTimeOffset ClientUpdatedAt { get; set; }
+    public bool Deleted { get; set; }
+}
+
+public sealed class ProveedoresSyncRequest
+{
+    public List<ProveedorSyncItem> Items { get; set; } = [];
+}
+
+public sealed class CompraProveedorSyncItem
+{
+    public long LocalId { get; set; }
+    public string? MutationId { get; set; }
+    public Guid ProveedorId { get; set; }
+    public decimal Monto { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+}
+
+public sealed class ComprasProveedorSyncRequest
+{
+    public List<CompraProveedorSyncItem> Items { get; set; } = [];
+}
+
+public sealed class PagoProveedorSyncItem
+{
+    public long LocalId { get; set; }
+    public string? MutationId { get; set; }
+    public Guid ProveedorId { get; set; }
+    public decimal Monto { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public MetodoPago MetodoPago { get; set; }
+
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+
+    /// <summary>Foto del comprobante de transferencia, ya subida por POST /v1/files.</summary>
+    public Guid? ComprobanteFileId { get; set; }
+}
+
+public sealed class PagosProveedorSyncRequest
+{
+    public List<PagoProveedorSyncItem> Items { get; set; } = [];
+}
+
+public sealed class ProveedorDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public string Nombre { get; set; } = "";
+    public string? Telefono { get; set; }
+    public string? Notas { get; set; }
+    public decimal DeudaInicial { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class PagedProveedoresResponse
+{
+    public List<ProveedorDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}
+
+public sealed class CompraProveedorDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public Guid ProveedorId { get; set; }
+    public decimal Monto { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class PagedComprasProveedorResponse
+{
+    public List<CompraProveedorDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}
+
+public sealed class PagoProveedorDto
+{
+    public Guid Id { get; set; }
+    public long? LocalId { get; set; }
+    public Guid ProveedorId { get; set; }
+    public decimal Monto { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public MetodoPago MetodoPago { get; set; }
+
+    public DateTimeOffset Fecha { get; set; }
+    public string? Nota { get; set; }
+    public Guid? ComprobanteFileId { get; set; }
+
+    /// <summary>URL firmada y temporal de la foto del comprobante (null si no hay o el storage no está configurado).</summary>
+    public string? ComprobanteUrl { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class PagedPagosProveedorResponse
+{
+    public List<PagoProveedorDto> Items { get; set; } = [];
+    public string? NextCursor { get; set; }
+}
