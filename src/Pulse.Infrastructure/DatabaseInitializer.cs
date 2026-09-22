@@ -25,6 +25,7 @@ public static class DatabaseInitializer
         }
 
         await SeedSuperAdminsAsync(scope.ServiceProvider, cancellationToken);
+        await SeedTenantRolesAsync(scope.ServiceProvider, cancellationToken);
     }
 
     /// <summary>
@@ -96,6 +97,71 @@ public static class DatabaseInitializer
 
             if (!await userManager.IsInRoleAsync(user, Roles.SuperAdmin))
                 await userManager.AddToRoleAsync(user, Roles.SuperAdmin);
+        }
+    }
+
+    /// <summary>
+    /// Crea los roles Dueno/Gerente/Vendedor (si faltan) y rellena tenants de antes de que existiera
+    /// este modelo: el usuario más antiguo de cada tenant sin ningún rol propio pasa a ser Dueño (es
+    /// quien más probablemente registró el negocio), y el resto de sus compañeros sin rol quedan
+    /// como Vendedor (así es como ya venían usando la app). Idempotente: se re-ejecuta en cada
+    /// arranque, no toca usuarios que ya tengan alguno de estos tres roles.
+    /// </summary>
+    private static async Task SeedTenantRolesAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = services.GetRequiredService<PulseDbContext>();
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DatabaseInitializer));
+
+        foreach (var role in new[] { Roles.Dueno, Roles.Gerente, Roles.Vendedor })
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+        }
+
+        var tenantRoleIds = await db.Roles
+            .Where(r => r.Name == Roles.Dueno || r.Name == Roles.Gerente || r.Name == Roles.Vendedor)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        var usersWithTenantRole = await db.UserRoles
+            .Where(ur => tenantRoleIds.Contains(ur.RoleId))
+            .Select(ur => ur.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var usersWithTenantRoleSet = usersWithTenantRole.ToHashSet();
+
+        var usersByTenant = await db.Users
+            .Where(u => u.TenantId != null)
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => new { u.Id, u.TenantId, u.CreatedAt })
+            .ToListAsync(cancellationToken);
+
+        foreach (var group in usersByTenant.GroupBy(u => u.TenantId!.Value))
+        {
+            var membersSinRol = group.Where(u => !usersWithTenantRoleSet.Contains(u.Id)).ToList();
+            if (membersSinRol.Count == 0)
+                continue;
+
+            var yaTieneDueno = group.Any(u => usersWithTenantRoleSet.Contains(u.Id));
+            // Si el tenant ya tenía a alguien con rol propio, no asumimos quién debería ser el
+            // Dueño entre los que faltan — todos quedan como Vendedor. Si nadie tenía rol
+            // (tenant íntegramente pre-roles), el más antiguo pasa a Dueño y el resto a Vendedor.
+            var primerMiembro = membersSinRol[0];
+            var dueñoId = yaTieneDueno ? (Guid?)null : primerMiembro.Id;
+
+            foreach (var member in membersSinRol)
+            {
+                var user = await userManager.FindByIdAsync(member.Id.ToString());
+                if (user is null) continue;
+                var role = member.Id == dueñoId ? Roles.Dueno : Roles.Vendedor;
+                await userManager.AddToRoleAsync(user, role);
+            }
+
+            logger.LogInformation(
+                "Roles de tenant sembrados para {TenantId}: {Count} usuario(s), dueño={Dueno}.",
+                group.Key, membersSinRol.Count, dueñoId);
         }
     }
 }

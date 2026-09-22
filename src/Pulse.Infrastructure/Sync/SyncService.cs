@@ -173,7 +173,7 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
         return new SyncBatchResponse { Results = results };
     }
 
-    public async Task<SyncBatchResponse> PushVentasAsync(Guid tenantId, VentasSyncRequest request, CancellationToken ct)
+    public async Task<SyncBatchResponse> PushVentasAsync(Guid tenantId, Guid vendedorId, VentasSyncRequest request, CancellationToken ct)
     {
         var results = new List<SyncResultItem>();
         foreach (var item in request.Items)
@@ -218,6 +218,7 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                     MetodoPago = item.MetodoPago,
                     Estado = item.Estado,
                     ClienteId = clienteResolved,
+                    VendedorId = vendedorId,
                     CreatedAt = DateTimeOffset.UtcNow
                 };
                 db.Ventas.Add(venta);
@@ -703,10 +704,12 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
         return new PagedClientesResponse { Items = items, NextCursor = next };
     }
 
-    public async Task<PagedVentasResponse> PullVentasAsync(Guid tenantId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
+    public async Task<PagedVentasResponse> PullVentasAsync(Guid tenantId, Guid? scopeToVendedorId, DateTimeOffset? createdSince, string? cursor, int limit, CancellationToken ct)
     {
         limit = Math.Clamp(limit, 1, 500);
         var q = db.Ventas.AsNoTracking().Where(v => v.TenantId == tenantId);
+        if (scopeToVendedorId.HasValue)
+            q = q.Where(v => v.VendedorId == scopeToVendedorId.Value || v.Estado == EstadoVenta.fiado);
 
         if (CursorHelper.TryDecode(cursor, out var cur) && cur != null)
         {
@@ -742,6 +745,20 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                 .ToDictionaryAsync(m => m.VentaId, m => m.LocalId, ct);
         }
 
+        // Atribución (quién vendió qué): solo tiene sentido para quien ve todo el tenant, no para
+        // un Vendedor mirando su propia lista.
+        var emailsByVendedorId = new Dictionary<Guid, string>();
+        if (!scopeToVendedorId.HasValue)
+        {
+            var vendedorIds = rows.Where(r => r.VendedorId.HasValue).Select(r => r.VendedorId!.Value).Distinct().ToList();
+            if (vendedorIds.Count > 0)
+            {
+                emailsByVendedorId = await db.Users.AsNoTracking()
+                    .Where(u => vendedorIds.Contains(u.Id))
+                    .ToDictionaryAsync(u => u.Id, u => u.Email ?? "", ct);
+            }
+        }
+
         var items = rows.Select(v => new VentaDto
         {
             Id = v.Id,
@@ -751,6 +768,8 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
             MetodoPago = v.MetodoPago,
             Estado = v.Estado,
             ClienteId = v.ClienteId,
+            VendedorId = v.VendedorId,
+            VendedorEmail = v.VendedorId.HasValue && emailsByVendedorId.TryGetValue(v.VendedorId.Value, out var vEmail) ? vEmail : null,
             CreatedAt = v.CreatedAt,
             Lineas = v.Lineas.Select(l => new VentaLineaDto
             {

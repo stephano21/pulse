@@ -31,10 +31,11 @@ public interface IAdminService
     /// <summary>
     /// Crea un usuario dentro de un tenant existente, con el correo ya confirmado (lo da de alta
     /// alguien que ya pertenece al tenant, así que no hace falta el flujo de confirmación por
-    /// correo). Usado por POST /v1/team/users. Lanza InvalidOperationException si Identity
-    /// rechaza el alta (correo duplicado, contraseña débil, etc.).
+    /// correo). Usado por POST /v1/team/users. `role` debe ser uno de Roles.Dueno/Gerente/Vendedor.
+    /// Lanza InvalidOperationException si Identity rechaza el alta (correo duplicado, contraseña
+    /// débil, etc.) o si `role` no es válido.
     /// </summary>
-    Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, CancellationToken ct);
+    Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, string role, CancellationToken ct);
 
     /// <summary>Promueve/revoca SuperAdmin. Devuelve false si la operación dejaría el sistema sin ningún SuperAdmin.</summary>
     Task<bool> SetSuperAdminAsync(Guid userId, bool enabled, CancellationToken ct);
@@ -58,6 +59,12 @@ public interface IAdminService
     /// cumple la política (se mapea a 400).
     /// </summary>
     Task<bool> ResetPasswordAsync(Guid userId, string newPassword, CancellationToken ct);
+
+    /// <summary>Como SetUserActiveAsync, pero solo si el usuario pertenece a `tenantId` (lo usa /v1/team — el Dueño solo gestiona su propio equipo). Null = no existe o es de otro tenant.</summary>
+    Task<bool?> SetTeamUserActiveAsync(Guid tenantId, Guid userId, bool active, CancellationToken ct);
+
+    /// <summary>Como ResetPasswordAsync, pero solo si el usuario pertenece a `tenantId`. Null = no existe o es de otro tenant.</summary>
+    Task<bool?> ResetTeamUserPasswordAsync(Guid tenantId, Guid userId, string newPassword, CancellationToken ct);
 
     /// <summary>Corrige manualmente el stock de un producto. Devuelve null si el producto no existe en el tenant.</summary>
     Task<ProductoDto?> AdjustProductoStockAsync(Guid tenantId, Guid productoId, int stock, CancellationToken ct);

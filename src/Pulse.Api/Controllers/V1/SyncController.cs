@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,7 +33,7 @@ public sealed class SyncController(ISyncService sync) : ControllerBase
     public async Task<ActionResult<SyncBatchResponse>> PushVentas([FromBody] VentasSyncRequest body, CancellationToken ct)
     {
         var tid = TenantId();
-        var result = await sync.PushVentasAsync(tid, body, ct);
+        var result = await sync.PushVentasAsync(tid, UserId(), body, ct);
         return Ok(result);
     }
 
@@ -81,6 +82,14 @@ public sealed class SyncController(ISyncService sync) : ControllerBase
         var v = User.FindFirst("tenant_id")?.Value;
         if (v == null || !Guid.TryParse(v, out var g))
             throw new InvalidOperationException("Falta claim tenant_id.");
+        return g;
+    }
+
+    private Guid UserId()
+    {
+        var v = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (v == null || !Guid.TryParse(v, out var g))
+            throw new InvalidOperationException("Falta claim de usuario.");
         return g;
     }
 }

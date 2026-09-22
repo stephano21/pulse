@@ -45,7 +45,7 @@ public sealed class AdminTenantDataController(ISyncService sync, IAdminService a
         [FromQuery] int limit = 100,
         CancellationToken ct = default)
     {
-        var result = await sync.PullVentasAsync(tenantId, createdSince, cursor, limit, ct);
+        var result = await sync.PullVentasAsync(tenantId, null, createdSince, cursor, limit, ct);
         return Ok(result);
     }
 

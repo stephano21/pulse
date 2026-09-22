@@ -103,6 +103,14 @@ public sealed class Venta
     public EstadoVenta Estado { get; set; }
     public Guid? ClienteId { get; set; }
     public Cliente? Cliente { get; set; }
+
+    /// <summary>
+    /// Quién la registró (rol Vendedor en la app). Null = venta creada desde el admin (soporte),
+    /// sin atribución a nadie en particular. Un Vendedor solo ve sus propias ventas cobradas más
+    /// las fiadas de todo el tenant (compartidas); Dueño/Gerente/SuperAdmin ven todo con atribución.
+    /// </summary>
+    public Guid? VendedorId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public ICollection<VentaLinea> Lineas { get; set; } = new List<VentaLinea>();
 }

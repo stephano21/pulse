@@ -201,8 +201,13 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return result.Succeeded;
     }
 
-    public async Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, CancellationToken ct)
+    private static readonly HashSet<string> ValidTenantRoles = [Roles.Dueno, Roles.Gerente, Roles.Vendedor];
+
+    public async Task<AdminUserDto> CreateTeamUserAsync(Guid tenantId, string email, string password, string role, CancellationToken ct)
     {
+        if (!ValidTenantRoles.Contains(role))
+            throw new InvalidOperationException($"Rol inválido: {role}. Debe ser Dueno, Gerente o Vendedor.");
+
         var now = DateTimeOffset.UtcNow;
         var user = new ApplicationUser
         {
@@ -219,8 +224,12 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
 
+        var roleResult = await userManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
+            throw new InvalidOperationException(string.Join(" ", roleResult.Errors.Select(e => e.Description)));
+
         var tenantName = await db.Tenants.Where(t => t.Id == tenantId).Select(t => t.Name).FirstOrDefaultAsync(ct);
-        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenantName, [], user.LastLoginAt, user.CreatedAt, true);
+        return new AdminUserDto(user.Id, user.Email!, user.EmailConfirmed, user.TenantId, tenantName, [role], user.LastLoginAt, user.CreatedAt, true);
     }
 
     public async Task<bool> SetUserActiveAsync(Guid userId, bool active, CancellationToken ct)
@@ -270,6 +279,22 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
             throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
 
         return true;
+    }
+
+    public async Task<bool?> SetTeamUserActiveAsync(Guid tenantId, Guid userId, bool active, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null || user.TenantId != tenantId)
+            return null;
+        return await SetUserActiveAsync(userId, active, ct);
+    }
+
+    public async Task<bool?> ResetTeamUserPasswordAsync(Guid tenantId, Guid userId, string newPassword, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null || user.TenantId != tenantId)
+            return null;
+        return await ResetPasswordAsync(userId, newPassword, ct);
     }
 
     private async Task<ProductoDto> ToProductoDtoAsync(Product producto, Guid tenantId, CancellationToken ct)

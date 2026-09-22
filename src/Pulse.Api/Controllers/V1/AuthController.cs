@@ -112,6 +112,17 @@ public sealed class AuthController(
                 detail: string.Join(" ", result.Errors.Select(e => e.Description)),
                 statusCode: StatusCodes.Status400BadRequest);
         }
+
+        // Quien registra un negocio nuevo es su dueño: control total sobre su propio tenant.
+        var roleResult = await userManager.AddToRoleAsync(user, Roles.Dueno);
+        if (!roleResult.Succeeded)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Problem(
+                title: "No se pudo registrar",
+                detail: string.Join(" ", roleResult.Errors.Select(e => e.Description)),
+                statusCode: StatusCodes.Status400BadRequest);
+        }
         await tx.CommitAsync(cancellationToken);
 
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
@@ -325,6 +336,17 @@ public sealed class AuthController(
                     return Problem(
                         title: "No se pudo vincular Google",
                         detail: string.Join(" ", newLogin.Errors.Select(e => e.Description)),
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
+
+                // Quien registra un negocio nuevo es su dueño: control total sobre su propio tenant.
+                var roleResult = await userManager.AddToRoleAsync(user, Roles.Dueno);
+                if (!roleResult.Succeeded)
+                {
+                    await tx.RollbackAsync(HttpContext.RequestAborted);
+                    return Problem(
+                        title: "No se pudo crear la cuenta",
+                        detail: string.Join(" ", roleResult.Errors.Select(e => e.Description)),
                         statusCode: StatusCodes.Status400BadRequest);
                 }
 

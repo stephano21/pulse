@@ -157,6 +157,9 @@ public sealed class VentaDto
     public EstadoVenta Estado { get; set; }
 
     public Guid? ClienteId { get; set; }
+    public Guid? VendedorId { get; set; }
+    /// <summary>Solo para quien puede ver todo el tenant (Dueño/Gerente/SuperAdmin) — null en la vista de un Vendedor.</summary>
+    public string? VendedorEmail { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public List<VentaLineaDto> Lineas { get; set; } = [];
 }
