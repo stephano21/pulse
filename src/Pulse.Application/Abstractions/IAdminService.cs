@@ -40,6 +40,14 @@ public interface IAdminService
     /// <summary>Promueve/revoca SuperAdmin. Devuelve false si la operación dejaría el sistema sin ningún SuperAdmin.</summary>
     Task<bool> SetSuperAdminAsync(Guid userId, bool enabled, CancellationToken ct);
 
+    /// <summary>
+    /// Cambia el rol de tenant de un usuario (Dueno/Gerente/Vendedor) — un usuario tiene como
+    /// mucho uno de estos tres a la vez, así que esto reemplaza el que tuviera, no lo acumula.
+    /// No toca SuperAdmin (es un rol aparte, global). Devuelve false si el usuario no existe o
+    /// `role` no es válido.
+    /// </summary>
+    Task<bool> SetTenantRoleAsync(Guid userId, string role, CancellationToken ct);
+
     /// <summary>Marca/desmarca el correo como confirmado a mano (soporte). Devuelve false si el usuario no existe.</summary>
     Task<bool> SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct);
 

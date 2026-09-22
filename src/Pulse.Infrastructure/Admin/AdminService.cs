@@ -187,6 +187,27 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
         return true;
     }
 
+    public async Task<bool> SetTenantRoleAsync(Guid userId, string role, CancellationToken ct)
+    {
+        if (!ValidTenantRoles.Contains(role))
+            return false;
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return false;
+
+        var currentRoles = await userManager.GetRolesAsync(user);
+        var currentTenantRoles = currentRoles.Where(r => ValidTenantRoles.Contains(r)).ToList();
+        if (currentTenantRoles.Count == 1 && currentTenantRoles[0] == role)
+            return true;
+
+        if (currentTenantRoles.Count > 0)
+            await userManager.RemoveFromRolesAsync(user, currentTenantRoles);
+        await userManager.AddToRoleAsync(user, role);
+
+        return true;
+    }
+
     public async Task<bool> SetEmailConfirmedAsync(Guid userId, bool confirmed, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());

@@ -32,6 +32,12 @@ public sealed class AdminUsersController(IAdminService admin) : ControllerBase
         public Guid TenantId { get; set; }
     }
 
+    public sealed class SetTenantRoleRequest
+    {
+        /// <summary>Dueno, Gerente o Vendedor.</summary>
+        public string Role { get; set; } = "";
+    }
+
     public sealed class ResetPasswordRequest
     {
         public string NewPassword { get; set; } = "";
@@ -76,6 +82,19 @@ public sealed class AdminUsersController(IAdminService admin) : ControllerBase
                 title: "No se pudo actualizar el acceso",
                 detail: "El usuario no existe o esta acción dejaría el sistema sin ningún SuperAdmin activo.",
                 statusCode: StatusCodes.Status409Conflict);
+
+        return NoContent();
+    }
+
+    [HttpPut("{userId:guid}/tenant-role")]
+    public async Task<IActionResult> SetTenantRole(Guid userId, [FromBody] SetTenantRoleRequest body, CancellationToken ct)
+    {
+        var ok = await admin.SetTenantRoleAsync(userId, body.Role, ct);
+        if (!ok)
+            return Problem(
+                title: "No se pudo actualizar el rol",
+                detail: "El usuario no existe o el rol no es válido (Dueno, Gerente o Vendedor).",
+                statusCode: StatusCodes.Status400BadRequest);
 
         return NoContent();
     }
