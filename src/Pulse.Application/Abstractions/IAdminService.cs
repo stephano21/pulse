@@ -95,6 +95,23 @@ public interface IAdminService
     /// </summary>
     Task<VentaDto> CreateVentaAsync(Guid tenantId, AdminCreateVentaRequest request, CancellationToken ct);
 
+    /// <summary>
+    /// Reversa (total o parcialmente) una venta: crea una nueva venta compensatoria con líneas en
+    /// negativo — nunca edita ni borra la original — y repone el stock de cada línea reversada.
+    /// `restrictToVendedorId` no nulo exige que la venta sea de ese vendedor (uso desde la app);
+    /// null = sin restricción (Dueño). Lanza KeyNotFoundException si la venta no existe en el
+    /// tenant, UnauthorizedAccessException si `restrictToVendedorId` no coincide con el vendedor
+    /// de la venta, InvalidOperationException si ya es un reverso, si las cantidades pedidas
+    /// exceden lo pendiente de reversar, o si ya se reversó por completo.
+    /// </summary>
+    Task<VentaDto> ReversarVentaAsync(
+        Guid tenantId,
+        Guid ventaId,
+        Guid actorUserId,
+        Guid? restrictToVendedorId,
+        ReversarVentaRequest request,
+        CancellationToken ct);
+
     /// <summary>Da de alta un proveedor a nombre del tenant (soporte). Lanza InvalidOperationException si el nombre está vacío.</summary>
     Task<ProveedorDto> CreateProveedorAsync(Guid tenantId, AdminCreateProveedorRequest request, CancellationToken ct);
 

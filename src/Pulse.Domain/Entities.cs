@@ -111,6 +111,17 @@ public sealed class Venta
     /// </summary>
     public Guid? VendedorId { get; set; }
 
+    /// <summary>
+    /// No nulo = esta venta ES un reverso (transacción compensatoria) de otra. Nunca se edita ni
+    /// se borra una venta para corregirla — se crea una nueva con líneas en negativo, así queda
+    /// auditoría de ambas y el stock/saldo del cliente se recalculan solos (salen de sumar todo).
+    /// Un reverso nunca se puede volver a reversar.
+    /// </summary>
+    public Guid? ReversaDeVentaId { get; set; }
+
+    /// <summary>Motivo opcional del reverso (solo tiene sentido cuando ReversaDeVentaId no es null).</summary>
+    public string? MotivoReverso { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public ICollection<VentaLinea> Lineas { get; set; } = new List<VentaLinea>();
 }
@@ -126,6 +137,9 @@ public sealed class VentaLinea
     public decimal Subtotal { get; set; }
     public Guid? ProductoId { get; set; }
     public Product? Producto { get; set; }
+
+    /// <summary>No nulo = esta línea reversa (en negativo) una línea específica de la venta original.</summary>
+    public Guid? ReversaDeVentaLineaId { get; set; }
 }
 
 public sealed class VentaLocalMapping

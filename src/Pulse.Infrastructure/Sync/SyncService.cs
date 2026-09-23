@@ -770,6 +770,8 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
             ClienteId = v.ClienteId,
             VendedorId = v.VendedorId,
             VendedorEmail = v.VendedorId.HasValue && emailsByVendedorId.TryGetValue(v.VendedorId.Value, out var vEmail) ? vEmail : null,
+            ReversaDeVentaId = v.ReversaDeVentaId,
+            MotivoReverso = v.MotivoReverso,
             CreatedAt = v.CreatedAt,
             Lineas = v.Lineas.Select(l => new VentaLineaDto
             {
@@ -778,7 +780,8 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                 Cantidad = l.Cantidad,
                 PrecioUnitario = l.PrecioUnitario,
                 Subtotal = l.Subtotal,
-                ProductoId = l.ProductoId
+                ProductoId = l.ProductoId,
+                ReversaDeVentaLineaId = l.ReversaDeVentaLineaId
             }).ToList()
         }).ToList();
 

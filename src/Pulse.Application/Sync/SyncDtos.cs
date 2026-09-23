@@ -141,6 +141,8 @@ public sealed class VentaLineaDto
     public decimal PrecioUnitario { get; set; }
     public decimal Subtotal { get; set; }
     public Guid? ProductoId { get; set; }
+    /// <summary>No nulo = esta línea reversa (en negativo) esta línea de la venta original.</summary>
+    public Guid? ReversaDeVentaLineaId { get; set; }
 }
 
 public sealed class VentaDto
@@ -160,8 +162,24 @@ public sealed class VentaDto
     public Guid? VendedorId { get; set; }
     /// <summary>Solo para quien puede ver todo el tenant (Dueño/Gerente/SuperAdmin) — null en la vista de un Vendedor.</summary>
     public string? VendedorEmail { get; set; }
+    /// <summary>No nulo = esta venta ES un reverso de la venta con este Id.</summary>
+    public Guid? ReversaDeVentaId { get; set; }
+    public string? MotivoReverso { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public List<VentaLineaDto> Lineas { get; set; } = [];
+}
+
+public sealed class ReversoLineaItem
+{
+    public Guid VentaLineaId { get; set; }
+    public decimal Cantidad { get; set; }
+}
+
+public sealed class ReversarVentaRequest
+{
+    /// <summary>Vacío/null = reversa todo lo que quede pendiente de cada línea (reverso completo).</summary>
+    public List<ReversoLineaItem>? Lineas { get; set; }
+    public string? Motivo { get; set; }
 }
 
 public sealed class PagedVentasResponse

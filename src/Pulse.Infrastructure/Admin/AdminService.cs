@@ -627,4 +627,146 @@ public sealed class AdminService(PulseDbContext db, UserManager<ApplicationUser>
             }).ToList()
         };
     }
+
+    public async Task<VentaDto> ReversarVentaAsync(
+        Guid tenantId,
+        Guid ventaId,
+        Guid actorUserId,
+        Guid? restrictToVendedorId,
+        ReversarVentaRequest request,
+        CancellationToken ct)
+    {
+        var venta = await db.Ventas.Include(v => v.Lineas)
+            .FirstOrDefaultAsync(v => v.Id == ventaId && v.TenantId == tenantId, ct);
+        if (venta is null)
+            throw new KeyNotFoundException("Venta no encontrada.");
+
+        if (venta.ReversaDeVentaId != null)
+            throw new InvalidOperationException("No se puede reversar un reverso.");
+
+        if (restrictToVendedorId.HasValue && venta.VendedorId != restrictToVendedorId.Value)
+            throw new UnauthorizedAccessException("Solo podés reversar tus propias ventas.");
+
+        // Cuánto de cada línea original ya se reversó antes (líneas de reverso guardan Cantidad negativa).
+        var lineaIds = venta.Lineas.Select(l => l.Id).ToList();
+        var yaReversado = await db.VentaLineas
+            .Where(l => l.ReversaDeVentaLineaId != null && lineaIds.Contains(l.ReversaDeVentaLineaId.Value))
+            .GroupBy(l => l.ReversaDeVentaLineaId!.Value)
+            .Select(g => new { LineaId = g.Key, Cantidad = g.Sum(x => -x.Cantidad) })
+            .ToDictionaryAsync(x => x.LineaId, x => x.Cantidad, ct);
+
+        decimal Restante(VentaLinea l) => l.Cantidad - (yaReversado.TryGetValue(l.Id, out var yr) ? yr : 0);
+
+        var aReversar = new List<(VentaLinea Original, decimal Cantidad)>();
+        if (request.Lineas is { Count: > 0 })
+        {
+            foreach (var item in request.Lineas)
+            {
+                var original = venta.Lineas.FirstOrDefault(l => l.Id == item.VentaLineaId);
+                if (original is null)
+                    throw new InvalidOperationException("Una de las líneas no pertenece a esta venta.");
+
+                var restante = Restante(original);
+                if (item.Cantidad <= 0 || item.Cantidad > restante)
+                    throw new InvalidOperationException(
+                        $"Cantidad inválida para \"{original.Descripcion}\" (disponible para reversar: {restante}).");
+
+                aReversar.Add((original, item.Cantidad));
+            }
+        }
+        else
+        {
+            foreach (var original in venta.Lineas)
+            {
+                var restante = Restante(original);
+                if (restante > 0)
+                    aReversar.Add((original, restante));
+            }
+        }
+
+        if (aReversar.Count == 0)
+            throw new InvalidOperationException("Esta venta ya fue completamente reversada.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        var reversoId = Guid.NewGuid();
+        var lineasReverso = new List<VentaLinea>();
+        decimal total = 0;
+
+        foreach (var (original, cantidad) in aReversar)
+        {
+            var subtotal = -(cantidad * original.PrecioUnitario);
+            total += subtotal;
+            lineasReverso.Add(new VentaLinea
+            {
+                Id = Guid.NewGuid(),
+                VentaId = reversoId,
+                Descripcion = original.Descripcion,
+                Cantidad = -cantidad,
+                PrecioUnitario = original.PrecioUnitario,
+                Subtotal = subtotal,
+                ProductoId = original.ProductoId,
+                ReversaDeVentaLineaId = original.Id
+            });
+
+            if (original.ProductoId.HasValue)
+            {
+                var producto = await db.Products.FirstOrDefaultAsync(
+                    p => p.TenantId == tenantId && p.Id == original.ProductoId.Value, ct);
+                if (producto != null)
+                {
+                    producto.Stock += (int)Math.Round(cantidad, MidpointRounding.AwayFromZero);
+                    producto.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+            }
+        }
+
+        var reverso = new Venta
+        {
+            Id = reversoId,
+            TenantId = tenantId,
+            Fecha = DateTimeOffset.UtcNow,
+            Total = total,
+            MetodoPago = venta.MetodoPago,
+            Estado = venta.Estado,
+            ClienteId = venta.ClienteId,
+            VendedorId = actorUserId,
+            ReversaDeVentaId = venta.Id,
+            MotivoReverso = string.IsNullOrWhiteSpace(request.Motivo) ? null : request.Motivo.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        db.Ventas.Add(reverso);
+        db.VentaLineas.AddRange(lineasReverso);
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var actorEmail = await db.Users.Where(u => u.Id == actorUserId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+
+        return new VentaDto
+        {
+            Id = reverso.Id,
+            LocalId = null,
+            Fecha = reverso.Fecha,
+            Total = reverso.Total,
+            MetodoPago = reverso.MetodoPago,
+            Estado = reverso.Estado,
+            ClienteId = reverso.ClienteId,
+            VendedorId = reverso.VendedorId,
+            VendedorEmail = actorEmail,
+            ReversaDeVentaId = reverso.ReversaDeVentaId,
+            MotivoReverso = reverso.MotivoReverso,
+            CreatedAt = reverso.CreatedAt,
+            Lineas = lineasReverso.Select(l => new VentaLineaDto
+            {
+                Id = l.Id,
+                Descripcion = l.Descripcion,
+                Cantidad = l.Cantidad,
+                PrecioUnitario = l.PrecioUnitario,
+                Subtotal = l.Subtotal,
+                ProductoId = l.ProductoId,
+                ReversaDeVentaLineaId = l.ReversaDeVentaLineaId
+            }).ToList()
+        };
+    }
 }
