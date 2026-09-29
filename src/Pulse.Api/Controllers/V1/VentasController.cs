@@ -52,13 +52,13 @@ public sealed class VentasController(ISyncService sync, IAdminService admin) : C
             var reverso = await admin.ReversarVentaAsync(TenantId(), ventaId, UserId(), scope, body, ct);
             return Ok(reverso);
         }
-        catch (KeyNotFoundException)
+        catch (KeyNotFoundException e)
         {
-            return NotFound();
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status404NotFound);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException e)
         {
-            return Forbid();
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status403Forbidden);
         }
         catch (InvalidOperationException e)
         {

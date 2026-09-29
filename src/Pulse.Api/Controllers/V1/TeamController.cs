@@ -252,9 +252,9 @@ public sealed class TeamController(IAdminService admin, ISyncService sync) : Con
             var reverso = await admin.ReversarVentaAsync(TenantId(), ventaId, UserId(), null, body, ct);
             return Ok(reverso);
         }
-        catch (KeyNotFoundException)
+        catch (KeyNotFoundException e)
         {
-            return NotFound();
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status404NotFound);
         }
         catch (InvalidOperationException e)
         {
