@@ -64,6 +64,10 @@ public sealed class VentasController(ISyncService sync, IAdminService admin) : C
         {
             return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status400BadRequest);
         }
+        catch (Exception e)
+        {
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     private Guid TenantId()
