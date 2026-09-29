@@ -3,11 +3,19 @@ using Pulse.Domain;
 
 namespace Pulse.Application.Sync;
 
+public sealed class VentaLineaSyncResult
+{
+    public long LocalId { get; set; }
+    public Guid RemoteId { get; set; }
+}
+
 public sealed class SyncResultItem
 {
     public long LocalId { get; set; }
     public Guid RemoteId { get; set; }
     public string Status { get; set; } = "";
+    /// <summary>Solo en ventas recién creadas: el id remoto de cada línea, para que el cliente pueda guardar venta_detalle.remote_id (lo necesita para poder reversar una línea puntual después).</summary>
+    public List<VentaLineaSyncResult>? Lineas { get; set; }
 }
 
 public sealed class SyncBatchResponse
@@ -51,6 +59,8 @@ public sealed class ClientesSyncRequest
 
 public sealed class VentaLineaSyncItem
 {
+    /// <summary>Id local (venta_detalle.id) del cliente — se devuelve en la respuesta para que pueda guardar el id remoto de esta línea.</summary>
+    public long LocalId { get; set; }
     public string Descripcion { get; set; } = "";
     public decimal Cantidad { get; set; }
     public decimal PrecioUnitario { get; set; }

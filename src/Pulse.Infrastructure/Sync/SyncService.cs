@@ -223,12 +223,14 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                 };
                 db.Ventas.Add(venta);
 
+                var lineResults = new List<VentaLineaSyncResult>();
                 foreach (var line in item.LineItems)
                 {
                     var productoId = await ResolveProductoIdAsync(tenantId, line.ProductoRemoteId, line.ProductoLocalId, ct);
+                    var lineaId = Guid.NewGuid();
                     db.VentaLineas.Add(new VentaLinea
                     {
-                        Id = Guid.NewGuid(),
+                        Id = lineaId,
                         VentaId = ventaId,
                         Descripcion = line.Descripcion,
                         Cantidad = line.Cantidad,
@@ -236,6 +238,7 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                         Subtotal = line.Subtotal,
                         ProductoId = productoId
                     });
+                    lineResults.Add(new VentaLineaSyncResult { LocalId = line.LocalId, RemoteId = lineaId });
                 }
 
                 db.VentaLocalMappings.Add(new VentaLocalMapping
@@ -250,7 +253,7 @@ public sealed class SyncService(PulseDbContext db, IFileStorageService storage) 
                 await db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
                 await RegisterMutationIfAnyAsync(tenantId, item.MutationId, EntityVenta, item.LocalId, ventaId, "created", ct);
-                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = ventaId, Status = "created" });
+                results.Add(new SyncResultItem { LocalId = item.LocalId, RemoteId = ventaId, Status = "created", Lineas = lineResults });
             }
             catch
             {
