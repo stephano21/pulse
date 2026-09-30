@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pulse.Application.Abstractions;
 using Pulse.Application.Admin;
+using Pulse.Application.Sync;
 using Pulse.Infrastructure.Identity;
 
 namespace Pulse.Api.Controllers.V1.Admin;
@@ -156,5 +158,36 @@ public sealed class AdminTenantDataController(ISyncService sync, IAdminService a
     {
         var venta = await admin.CreateVentaAsync(tenantId, body, ct);
         return Ok(venta);
+    }
+
+    /// <summary>Reversa (total o parcialmente) cualquier venta del tenant — SuperAdmin, sin restricción de vendedor.</summary>
+    [HttpPost("ventas/{ventaId:guid}/reverso")]
+    public async Task<IActionResult> ReversarVenta(Guid tenantId, Guid ventaId, [FromBody] ReversarVentaRequest body, CancellationToken ct)
+    {
+        try
+        {
+            var reverso = await admin.ReversarVentaAsync(tenantId, ventaId, UserId(), null, body, ct);
+            return Ok(reverso);
+        }
+        catch (KeyNotFoundException e)
+        {
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (InvalidOperationException e)
+        {
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (Exception e)
+        {
+            return Problem(title: "No se pudo reversar la venta", detail: e.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    private Guid UserId()
+    {
+        var v = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (v == null || !Guid.TryParse(v, out var g))
+            throw new InvalidOperationException("Falta claim de usuario.");
+        return g;
     }
 }
